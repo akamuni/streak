@@ -1,0 +1,94 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+/* Custom focus and tap-highlight overrides */
+button:focus,
+a:focus,
+.MuiButtonBase-root:focus,
+.MuiButtonBase-root.Mui-focusVisible,
+.MuiAccordionSummary-root:focus,
+.MuiAccordionSummary-root.Mui-focusVisible {
+  outline: none !important;
+  box-shadow: none !important;
+  background-color: transparent !important;
+}
+* {
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Calendar Overrides */
+.react-calendar {
+  width: 100%;
+  border: none !important;
+  background-color: transparent !important;
+  color: #344e41 !important;
+  border-radius: 8px !important;
+  padding: 0.5em !important;
+}
+/* Calendar Tile Base */
+.react-calendar__month-view__days__day,
+.react-calendar__tile {
+  background: transparent !important;
+}
+/* Calendar Navigation & Weekdays Header */
+.react-calendar__navigation,
+.react-calendar__month-view__weekdays__weekday {
+  background: transparent !important;
+  color: #344e41 !important; /* unify header text */
+}
+/* Weekend tiles override */
+.react-calendar__month-view__days__day--weekend,
+.react-calendar__tile--weekend {
+  color: #344e41 !important;
+}
+.react-calendar__tile--now {
+  font-weight: bold;
+  background: var(--mui-palette-secondary-light) !important;
+}
+.react-calendar__tile--active {
+  background: var(--mui-palette-secondary-main) !important;
+  color: var(--mui-palette-secondary-contrastText) !important;
+}
+.react-calendar__tile:enabled:hover {
+  background-color: var(--mui-palette-action-hover) !important;
+}

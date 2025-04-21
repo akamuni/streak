@@ -1,0 +1,15 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Allow users to read/write only their own readChapters
+    match /users/{userId}/readChapters/{chapterId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // Deny all other document access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
