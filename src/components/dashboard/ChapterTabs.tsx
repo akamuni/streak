@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
-import { Tabs, Tab, Box, Chip, Typography, LinearProgress } from '@mui/material'
+import { Tabs, Tab, Box, List, ListItem, ListItemButton, ListItemText, Checkbox, Typography, LinearProgress } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { books } from '../../data/chapters'
+import gospelLinks from '../../data/Gospel Library App Links.json'
 
 interface ChapterTabsProps {
   readChapters: Record<string, Date>
@@ -19,7 +20,19 @@ const ChapterTabs: React.FC<ChapterTabsProps> = ({ readChapters, onToggle }) => 
   }
 
   const book = books[bookIndex]
-  const todayStr = new Date().toDateString()
+
+  const handleChapterClick = (index: number) => {
+    const id = `${book.name}-${index}`
+    onToggle(id, true)
+    const entry = (gospelLinks as any[]).find(l => l.book === book.name && l.chapter === index)
+    if (!entry) {
+      console.warn(`No deep link mapping for ${book.name} chapter ${index}`)
+      return
+    }
+    // open in-app link, then fallback to website
+    window.location.href = entry.gospelLink
+    setTimeout(() => window.open(entry.fallbackUrl, '_blank'), 500)
+  }
 
   return (
     <Box sx={{ width: '100%', boxSizing: 'border-box' }}>
@@ -58,32 +71,28 @@ const ChapterTabs: React.FC<ChapterTabsProps> = ({ readChapters, onToggle }) => 
         </Tabs>
       </Box>
 
-      <Box sx={{
-        mt: 2,
-        display: 'flex',
-        flexWrap: isMobile ? 'nowrap' : 'wrap',
-        overflowX: isMobile ? 'auto' : 'visible',
-        gap: 1,
-        px: 1,
-        '&::-webkit-scrollbar': { display: 'none' },
-      }}>
+      <List disablePadding sx={{ mt: 2, width: '100%' }}>
         {Array.from({ length: book.count }, (_, i) => {
-          const id = `${book.name}-${i + 1}`;
-          const checked = Boolean(readChapters[id]);
-          const isToday = checked && readChapters[id].toDateString() === todayStr;
-          const chipColor = isToday ? 'secondary' : checked ? 'primary' : 'default';
+          const index = i + 1
+          const id = `${book.name}-${index}`
+          const checked = Boolean(readChapters[id])
           return (
-            <Chip
-              key={id}
-              label={i + 1}
-              clickable
-              onClick={() => onToggle(id, !checked)}
-              color={chipColor}
-              size="small"
-            />
-          );
+            <ListItem key={id} disablePadding>
+              <ListItemButton onClick={() => handleChapterClick(index)}>
+                <ListItemText
+                  primary={`Chapter ${index}`}
+                  secondary={checked ? `Read on ${readChapters[id].toLocaleDateString()}` : undefined}
+                />
+                <Checkbox
+                  edge="end"
+                  checked={checked}
+                  onClick={e => { e.stopPropagation(); onToggle(id, !checked) }}
+                />
+              </ListItemButton>
+            </ListItem>
+          )
         })}
-      </Box>
+      </List>
     </Box>
   )
 }

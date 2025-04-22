@@ -1,4 +1,5 @@
-import React, { useContext, useState, useEffect, useRef } from 'react'
+import React, { useContext, useState, useEffect, useRef, useCallback } from 'react'
+import { ChangeEvent } from 'react'
 import { Container, Typography, Box, Avatar, Button, TextField, Accordion, AccordionSummary, AccordionDetails, List, ListItem, ListItemText, Divider, Switch, FormControlLabel, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import { AuthContext } from '../context/AuthContext'
@@ -9,6 +10,8 @@ import { auth } from '../firebase'
 import { updateEmail as authUpdateEmail, updatePassword as authUpdatePassword, reauthenticateWithCredential, EmailAuthProvider, deleteUser } from 'firebase/auth'
 import { useNavigate } from 'react-router-dom'
 import { sendFriendRequest, withdrawFriendRequest, listenIncomingRequests, listenOutgoingRequests, listenFriendsList, respondFriendRequest, removeFriend } from '../services/friendService'
+import Cropper, { Area } from 'react-easy-crop'
+import Slider from '@mui/material/Slider'
 
 const ProfilePage: React.FC = () => {
   const { user } = useContext(AuthContext)
@@ -18,33 +21,109 @@ const ProfilePage: React.FC = () => {
   const [about, setAbout] = useState<string>('')
   const [photoURL, setPhotoURL] = useState<string | undefined>('')
   const [username, setUsername] = useState<string>('')
+  const [editingUsername, setEditingUsername] = useState<boolean>(false)
+  const [usernameDraft, setUsernameDraft] = useState<string>(username)
   const [editingAbout, setEditingAbout] = useState<boolean>(false)
   const [aboutDraft, setAboutDraft] = useState<string>('')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [previewURL, setPreviewURL] = useState<string | undefined>(undefined)
+  const [crop, setCrop] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [croppedArea, setCroppedArea] = useState<Area | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const onCropComplete = useCallback((_: Area, croppedPixels: Area) => setCroppedArea(croppedPixels), [])
 
   useEffect(() => {
     if (!user) return
     const unsub = listenUserProfile(user.uid, data => {
       setUsername(data.username || '')
+      setUsernameDraft(data.username || '')
       setAbout(data.about || '')
       setPhotoURL(data.photoURL)
     })
     return () => unsub()
   }, [user])
 
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewURL(undefined)
+      return
+    }
+    const objectUrl = URL.createObjectURL(selectedFile)
+    setPreviewURL(objectUrl)
+    return () => {
+      URL.revokeObjectURL(objectUrl)
+      setPreviewURL(undefined)
+    }
+  }, [selectedFile])
+
   const navigate = useNavigate()
 
   const handleUploadClick = () => fileInputRef.current?.click()
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (!user || !e.target.files?.[0]) return
-    const url = await uploadProfilePicture(user.uid, e.target.files[0])
-    setPhotoURL(url)
+    setSelectedFile(e.target.files[0])
   }
+
+  async function getCroppedImg(imageSrc: string, pixelCrop: Area): Promise<Blob> {
+    const image = new Image()
+    image.src = imageSrc
+    await new Promise(resolve => { image.onload = resolve })
+    const canvas = document.createElement('canvas')
+    canvas.width = pixelCrop.width
+    canvas.height = pixelCrop.height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas is null')
+    ctx.drawImage(image, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, pixelCrop.width, pixelCrop.height)
+    return new Promise(resolve => canvas.toBlob(blob => resolve(blob!), 'image/jpeg'))
+  }
+
+  const handleConfirmUpload = async () => {
+    if (!user || !selectedFile) return
+    const url = await uploadProfilePicture(user.uid, selectedFile)
+    setPhotoURL(url)
+    setSelectedFile(null)
+  }
+
+  const handleCropAndUpload = async () => {
+    console.log('Crop & Upload clicked', { previewURL, croppedArea })
+    try {
+      if (!previewURL) throw new Error('No previewURL available')
+      // if user hasn't adjusted crop, upload full image
+      if (!croppedArea) {
+        console.log('No crop area, uploading full image')
+        await handleConfirmUpload()
+        // close crop dialog
+        setPreviewURL(undefined)
+        return
+      }
+      console.log('Cropping area', croppedArea)
+      const blob = await getCroppedImg(previewURL, croppedArea)
+      const file = new File([blob], selectedFile?.name || 'cropped.jpg', { type: 'image/jpeg' })
+      console.log('Uploading cropped file', file)
+      const url = await uploadProfilePicture(user.uid, file)
+      console.log('Upload succeeded, URL:', url)
+      setPhotoURL(url)
+      setSelectedFile(null)
+      setPreviewURL(undefined)
+    } catch (err: any) {
+      console.error('Crop & Upload error:', err)
+      alert(`Upload failed: ${err.message}`)
+    }
+  }
+
   const handleAboutSave = async () => {
     if (!user) return
     await updateUserProfile(user.uid, { about: aboutDraft })
     setAbout(aboutDraft)
     setEditingAbout(false)
+  }
+  const handleUsernameSave = async () => {
+    if (!user) return
+    await updateUserProfile(user.uid, { username: usernameDraft })
+    setUsername(usernameDraft)
+    setEditingUsername(false)
   }
 
   // Account management dialog state
@@ -123,12 +202,27 @@ const ProfilePage: React.FC = () => {
           <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography>Personal Info</Typography></AccordionSummary>
           <AccordionDetails>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar src={photoURL} sx={{ width: 64, height: 64 }} />
-              <Button variant="outlined" onClick={handleUploadClick}>Upload Picture</Button>
+              <Avatar key={previewURL || photoURL} src={previewURL || photoURL} sx={{ width: 64, height: 64 }} />
+              <Button variant="outlined" onClick={handleUploadClick}>Change Picture</Button>
               <input type="file" accept="image/*" hidden ref={fileInputRef} onChange={handleFileChange} />
             </Box>
-            <Box sx={{ mt: 1 }}>
-              <Typography variant="h6">{username || user.email}</Typography>
+            <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+              {editingUsername ? (
+                <>
+                  <TextField
+                    size="small"
+                    value={usernameDraft}
+                    onChange={e => setUsernameDraft(e.target.value)}
+                  />
+                  <Button size="small" onClick={handleUsernameSave}>Save</Button>
+                  <Button size="small" onClick={() => { setEditingUsername(false); setUsernameDraft(username); }}>Cancel</Button>
+                </>
+              ) : (
+                <>
+                  <Typography variant="h6">{username || user.email}</Typography>
+                  <Button variant="text" size="small" onClick={() => setEditingUsername(true)}>Edit</Button>
+                </>
+              )}
             </Box>
             <Box sx={{ mt: 2 }}>
               <TextField
@@ -240,6 +334,31 @@ const ProfilePage: React.FC = () => {
           </AccordionDetails>
         </Accordion>
       </Box>
+      <Dialog open={Boolean(previewURL)} onClose={() => { setSelectedFile(null); setPreviewURL(undefined) }}>
+        <DialogTitle>Crop Picture</DialogTitle>
+        <DialogContent>
+          <Box sx={{ position: 'relative', width: '100%', height: 300 }}>
+            <Cropper
+              image={previewURL!}
+              crop={crop}
+              zoom={zoom}
+              aspect={1}
+              onCropChange={setCrop}
+              onZoomChange={setZoom}
+              onCropComplete={onCropComplete}
+            />
+          </Box>
+          <Box sx={{ mt: 2 }}>
+            <Typography gutterBottom>Zoom</Typography>
+            <Slider value={zoom} min={1} max={3} step={0.1} onChange={(_, v) => setZoom(v as number)} />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setSelectedFile(null); setPreviewURL(undefined) }}>Cancel</Button>
+          <Button variant="outlined" onClick={async () => { await handleConfirmUpload(); setPreviewURL(undefined); }}>Upload Original</Button>
+          <Button variant="contained" onClick={handleCropAndUpload}>Crop & Upload</Button>
+        </DialogActions>
+      </Dialog>
       {/* Change Email Dialog */}
       <Dialog open={openEmailDialog} onClose={handleCloseEmail}>
         <DialogTitle>Change Email</DialogTitle>

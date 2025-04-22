@@ -1,17 +1,26 @@
 import React, { useContext, useState, useEffect, useMemo } from 'react'
-import { Container, Card, CardContent, Typography, Checkbox, FormControlLabel, Box, Button } from '@mui/material'
+import { Container, Card, CardContent, Typography, Checkbox, FormControlLabel, Box, Button, List, ListItem, ListItemAvatar, Avatar, ListItemText, Pagination } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
 import { AuthContext } from '../context/AuthContext'
 import { listenReadChapters } from '../services/chapterService'
 import { listenCheatDays, updateCheatDay } from '../services/cheatService'
-import StreakChart from '../components/dashboard/StreakChart'
-import StreakStats from '../components/dashboard/StreakStats'
+import { listenFriendsList } from '../services/friendService'
+import { listenUserProfile, UserProfile } from '../services/userService'
 
 const HomePage: React.FC = () => {
   const { user } = useContext(AuthContext)
   const navigate = useNavigate()
   const [readChapters, setReadChapters] = useState<Record<string, Date>>({})
   const [cheatDays, setCheatDays] = useState<Record<string, Date>>({})
+  const [friendIds, setFriendIds] = useState<string[]>([])
+  const [friendProfiles, setFriendProfiles] = useState<Record<string, UserProfile>>({})
+  const [friendReadData, setFriendReadData] = useState<Record<string, Record<string, Date>>>({})
+  const [friendStreaks, setFriendStreaks] = useState<Record<string, number>>({})
+  const [page, setPage] = useState(1)
+  const itemsPerPage = 5
+  const sortedFriends = Object.entries(friendStreaks).sort(([,a], [,b]) => b - a)
+  const totalPages = Math.ceil(sortedFriends.length / itemsPerPage)
+  const pagedFriends = sortedFriends.slice((page - 1) * itemsPerPage, page * itemsPerPage)
 
   useEffect(() => {
     if (!user) return
@@ -22,6 +31,47 @@ const HomePage: React.FC = () => {
       unsubCheats()
     }
   }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    const unsub = listenFriendsList(user.uid, list => setFriendIds(list.map(f => f.id)))
+    return unsub
+  }, [user])
+
+  useEffect(() => {
+    const unsubs: (() => void)[] = []
+    friendIds.forEach(fid => {
+      if (!friendProfiles[fid]) {
+        const unsub = listenUserProfile(fid, prof => setFriendProfiles(prev => ({ ...prev, [fid]: prof })))
+        unsubs.push(unsub)
+      }
+    })
+    return () => unsubs.forEach(u => u())
+  }, [friendIds])
+
+  useEffect(() => {
+    const unsubs: (() => void)[] = []
+    friendIds.forEach(fid => {
+      const unsub = listenReadChapters(fid, data => setFriendReadData(prev => ({ ...prev, [fid]: data })))
+      unsubs.push(unsub)
+    })
+    return () => unsubs.forEach(u => u())
+  }, [friendIds])
+
+  useEffect(() => {
+    const streaks: Record<string, number> = {}
+    Object.entries(friendReadData).forEach(([fid, data]) => {
+      const dateSet = new Set(Object.values(data).map(d => d.toDateString()))
+      let cnt = 0
+      let day = new Date()
+      while (dateSet.has(day.toDateString())) {
+        cnt++
+        day = new Date(day.getTime() - 86400000)
+      }
+      streaks[fid] = cnt
+    })
+    setFriendStreaks(streaks)
+  }, [friendReadData])
 
   // Combine read and cheat days for streak calculations
   const allDatesSet = new Set([
@@ -86,16 +136,6 @@ const HomePage: React.FC = () => {
       }}>
         <Card>
           <CardContent>
-            <Typography variant="h5">Current Streak: {currentStreak} days</Typography>
-            <Typography variant="h6">Longest Streak: {longest} days</Typography>
-            <FormControlLabel
-              control={<Checkbox checked={isCheatToday} onChange={handleCheatToggle} />}
-              label="Add cheat day (today)"
-            />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent>
             <Typography variant="h5">Continue Reading</Typography>
             {lastReadChapter ? (
               <Typography variant="body2" sx={{ mt: 1 }}>
@@ -116,18 +156,34 @@ const HomePage: React.FC = () => {
             </Box>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent>
+            <Typography variant="h5">Current Streak: {currentStreak} days</Typography>
+            <Typography variant="h6">Longest Streak: {longest} days</Typography>
+            <FormControlLabel
+              control={<Checkbox checked={isCheatToday} onChange={handleCheatToggle} />}
+              label="Add cheat day (today)"
+            />
+          </CardContent>
+        </Card>
       </Box>
       <Box sx={{ mt: 4 }}>
-        <Typography variant="h6" gutterBottom>
-          Streak Chart
-        </Typography>
-        <StreakChart />
-      </Box>
-      <Box sx={{ mt: 4 }}>
-        <Typography variant="h6" gutterBottom>
-          Streak History
-        </Typography>
-        <StreakStats />
+        <Typography variant="h6" gutterBottom>Friends Leaderboard</Typography>
+        <List>
+          {pagedFriends.map(([fid, st], idx) => {
+            const rank = (page - 1) * itemsPerPage + idx + 1
+            const prof = friendProfiles[fid] || {}
+            return (
+              <ListItem key={fid} sx={{ bgcolor: rank === 1 ? '#FFD700' : rank === 2 ? '#C0C0C0' : rank === 3 ? '#CD7F32' : 'inherit' }}>
+                <ListItemAvatar><Avatar src={prof.photoURL} /></ListItemAvatar>
+                <ListItemText primary={`${rank}. ${prof.username || fid}`} secondary={`Streak: ${st} ${st === 1 ? 'day' : 'days'}`} />
+              </ListItem>
+            )
+          })}
+        </List>
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
+          <Pagination count={totalPages} page={page} onChange={(_, v) => setPage(v)} size="small" />
+        </Box>
       </Box>
     </Container>
   )

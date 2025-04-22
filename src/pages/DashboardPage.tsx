@@ -1,16 +1,20 @@
 import React, { useContext, useState, useEffect } from 'react'
-import { AppBar, Toolbar, Typography, Button, Container, Card, CardContent, Tabs, Tab, Box, Chip, Stack } from '@mui/material'
+import { Typography, Container, Card, CardContent, Tabs, Tab, Box, Chip, Stack, List, ListItem, ListItemAvatar, Avatar, ListItemText, Pagination } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import { AuthContext } from '../context/AuthContext'
-import { logout } from '../services/authService'
+
 import ChapterTabs from '../components/dashboard/ChapterTabs'
 import StreakChart from '../components/dashboard/StreakChart'
 import StreakStats from '../components/dashboard/StreakStats'
 import { listenReadChapters, updateChapterRead } from '../services/chapterService'
 import { listenCheatDays, updateCheatDay } from '../services/cheatService'
+import { listenFriendsList } from '../services/friendService'
+import { getConversationId, sendMessage } from '../services/chatService'
+import { listenUserProfile, UserProfile } from '../services/userService'
 import { format } from 'date-fns'
+import Rooms from '../components/dashboard/Rooms'
 
 const DashboardPage: React.FC = () => {
   const { user } = useContext(AuthContext)
@@ -19,6 +23,15 @@ const DashboardPage: React.FC = () => {
   const theme = useTheme()
   const [cheatDays, setCheatDays] = useState<Record<string, Date>>({})
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [friendIds, setFriendIds] = useState<string[]>([])
+  const [friendProfiles, setFriendProfiles] = useState<Record<string, UserProfile>>({})
+  const [friendReadData, setFriendReadData] = useState<Record<string, Record<string, Date>>>({})
+  const [friendStreaks, setFriendStreaks] = useState<Record<string, number>>({})
+  const [page, setPage] = useState(1)
+  const itemsPerPage = 5
+  const sortedFriends = Object.entries(friendStreaks).sort(([,a], [,b]) => b - a)
+  const totalPages = Math.ceil(sortedFriends.length / itemsPerPage)
+  const pagedFriends = sortedFriends.slice((page - 1) * itemsPerPage, page * itemsPerPage)
 
   useEffect(() => {
     if (!user) {
@@ -35,6 +48,47 @@ const DashboardPage: React.FC = () => {
     return () => unsubCheat()
   }, [user])
 
+  useEffect(() => {
+    if (!user) return
+    const unsub = listenFriendsList(user.uid, list => setFriendIds(list.map(f => f.id)))
+    return unsub
+  }, [user])
+
+  useEffect(() => {
+    const unsubs: (() => void)[] = []
+    friendIds.forEach(fid => {
+      if (!friendProfiles[fid]) {
+        const unsub = listenUserProfile(fid, prof => setFriendProfiles(prev => ({ ...prev, [fid]: prof })))
+        unsubs.push(unsub)
+      }
+    })
+    return () => unsubs.forEach(u => u())
+  }, [friendIds])
+
+  useEffect(() => {
+    const unsubs: (() => void)[] = []
+    friendIds.forEach(fid => {
+      const unsub = listenReadChapters(fid, data => setFriendReadData(prev => ({ ...prev, [fid]: data })))
+      unsubs.push(unsub)
+    })
+    return () => unsubs.forEach(u => u())
+  }, [friendIds])
+
+  useEffect(() => {
+    const streaks: Record<string, number> = {}
+    Object.entries(friendReadData).forEach(([fid, data]) => {
+      const dateSet = new Set(Object.values(data).map(d => d.toDateString()))
+      let cnt = 0
+      let day = new Date()
+      while (dateSet.has(day.toDateString())) {
+        cnt++
+        day = new Date(day.getTime() - 86400000)
+      }
+      streaks[fid] = cnt
+    })
+    setFriendStreaks(streaks)
+  }, [friendReadData])
+
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTab(newValue)
   }
@@ -42,6 +96,22 @@ const DashboardPage: React.FC = () => {
   const handleToggleChapter = (id: string, checked: boolean) => {
     if (!user) return
     updateChapterRead(user.uid, id, checked)
+    setReadChapters(prev => {
+      const updated = { ...prev }
+      if (checked) {
+        updated[id] = new Date()
+      } else {
+        delete updated[id]
+      }
+      return updated
+    })
+    if (checked) {
+      const msg = `Just read chapter ${id}.`
+      friendIds.forEach(fid => {
+        const convo = getConversationId(user.uid, fid)
+        sendMessage(convo, user.uid, msg)
+      })
+    }
   }
 
   const computeStreak = () => {
@@ -70,16 +140,7 @@ const DashboardPage: React.FC = () => {
 
   return (
     <>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Streaker
-          </Typography>
-          <Button color="inherit" onClick={logout}>
-            Logout
-          </Button>
-        </Toolbar>
-      </AppBar>
+
       <Container sx={{
         mt: 4,
         width: '100%',
@@ -171,6 +232,31 @@ const DashboardPage: React.FC = () => {
             <Box sx={{ mt: 3 }}>
               <Typography variant="h6" gutterBottom>Streak History</Typography>
               <StreakStats />
+            </Box>
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="h6" gutterBottom>Friends Leaderboard</Typography>
+              <List>
+                {pagedFriends.map(([fid, st], idx) => {
+                  const rank = (page - 1) * itemsPerPage + idx + 1
+                  const prof = friendProfiles[fid] || {}
+                  return (
+                    <ListItem key={fid} sx={{ bgcolor: rank === 1 ? '#FFD700' : rank === 2 ? '#C0C0C0' : rank === 3 ? '#CD7F32' : 'inherit' }}>
+                      <ListItemAvatar><Avatar src={prof.photoURL} /></ListItemAvatar>
+                      <ListItemText
+                        primary={`${rank}. ${prof.username || fid}`}
+                        secondary={`Streak: ${st} ${st === 1 ? 'day' : 'days'}`}
+                      />
+                    </ListItem>
+                  )
+                })}
+              </List>
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
+                <Pagination count={totalPages} page={page} onChange={(_, v) => setPage(v)} size="small" />
+              </Box>
+            </Box>
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="h6" gutterBottom>Book Clubs</Typography>
+              <Rooms />
             </Box>
           </>
         )}

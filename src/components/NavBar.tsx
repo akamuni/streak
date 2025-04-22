@@ -6,6 +6,7 @@ import MenuBookIcon from '@mui/icons-material/MenuBook'
 import PersonIcon from '@mui/icons-material/Person'
 import GroupIcon from '@mui/icons-material/Group'
 import MenuIcon from '@mui/icons-material/Menu'
+import ChatIcon from '@mui/icons-material/Chat'
 
 const NavBar: React.FC = () => {
   const location = useLocation()
@@ -17,6 +18,7 @@ const NavBar: React.FC = () => {
     { label: 'Home', icon: <HomeIcon />, to: '/' },
     { label: 'Reading', icon: <MenuBookIcon />, to: '/chapters' },
     { label: 'Friends', icon: <GroupIcon />, to: '/friends' },
+    { label: 'Messages', icon: <ChatIcon />, to: '/messages' },
     { label: 'Profile', icon: <PersonIcon />, to: '/profile' },
   ]
 

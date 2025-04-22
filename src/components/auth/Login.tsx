@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { login, signInWithGoogle } from '../../services/authService'
 import { Container, Box, TextField, Button, Typography, Link } from '@mui/material'
-import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom'
+import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import GoogleIcon from '@mui/icons-material/Google'
 import Spinner from '../common/Spinner'
 import { useAuth } from '../../hooks/useAuth'
@@ -12,14 +12,12 @@ const Login: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const { user, loading } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
-  const from = (location.state as any)?.from?.pathname || '/'
 
   useEffect(() => {
     if (!loading && user) {
-      navigate(from, { replace: true })
+      navigate('/chapters', { replace: true })
     }
-  }, [user, loading, navigate, from])
+  }, [user, loading, navigate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
