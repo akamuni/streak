@@ -80,7 +80,13 @@ const DashboardPage: React.FC = () => {
           </Button>
         </Toolbar>
       </AppBar>
-      <Container sx={{ mt: 4 }}>
+      <Container sx={{
+        mt: 4,
+        width: '100%',
+        maxWidth: { sm: 'md' },
+        boxSizing: 'border-box',
+        px: { xs: 0.5, sm: 2 },
+      }}>
         <Card>
           <CardContent>
             <Typography variant="h5" gutterBottom>

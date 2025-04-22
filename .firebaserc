@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "streak-e5acd"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }
