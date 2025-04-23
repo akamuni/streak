@@ -1,6 +1,6 @@
 import React, { useContext } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { HomePage, LoginPage, SignupPage, DashboardPage, ProfilePage, FriendsPage, SetupProfilePage, MessagesPage, ChatPage, SignoutPage, NotFoundPage } from '../pages'
+import { LoginPage, SignupPage, DashboardPage, ProfilePage, FriendsPage, SetupProfilePage, MessagesPage, ChatPage, SignoutPage } from '../pages'
 import ProtectedRoute from '../components/auth/ProtectedRoute'
 import { AuthContext } from '../context/AuthContext'
 import Spinner from '../components/common/Spinner'

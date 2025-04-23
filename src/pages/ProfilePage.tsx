@@ -6,8 +6,9 @@ import { AuthContext } from '../context/AuthContext'
 import { ColorModeContext } from '../context/ColorModeContext'
 import { useTheme } from '@mui/material/styles'
 import { listenUserProfile, updateUserProfile, uploadProfilePicture } from '../services/userService'
-import { auth } from '../firebase'
-import { updateEmail as authUpdateEmail, updatePassword as authUpdatePassword, reauthenticateWithCredential, EmailAuthProvider, deleteUser } from 'firebase/auth'
+import { auth, db } from '../firebase'
+import { updateEmail as authUpdateEmail, updatePassword as authUpdatePassword, reauthenticateWithCredential, reauthenticateWithPopup, EmailAuthProvider, GoogleAuthProvider } from 'firebase/auth'
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { useNavigate } from 'react-router-dom'
 import { sendFriendRequest, withdrawFriendRequest, listenIncomingRequests, listenOutgoingRequests, listenFriendsList, respondFriendRequest, removeFriend } from '../services/friendService'
 import Cropper, { Area } from 'react-easy-crop'
@@ -142,6 +143,11 @@ const ProfilePage: React.FC = () => {
   const [deletePassword, setDeletePassword] = useState('')
   const [deleteError, setDeleteError] = useState('')
 
+  // Provider checks
+  const hasPasswordProvider = user.providerData.some(p => p.providerId === 'password')
+  const hasGoogleProvider = user.providerData.some(p => p.providerId === 'google.com')
+  const isGoogleOnly = hasGoogleProvider && !hasPasswordProvider
+
   // Friend management state
   const [incomingReqs, setIncomingReqs] = useState<{ id: string; from: string }[]>([])
   const [outgoingReqs, setOutgoingReqs] = useState<{ id: string; to: string }[]>([])
@@ -182,16 +188,38 @@ const ProfilePage: React.FC = () => {
     } catch (e: any) { setPwdError(e.message) }
   }
 
-  const handleOpenDelete = () => { setDeletePassword(''); setDeleteError(''); setOpenDeleteDialog(true) }
+  // Refresh auth user before opening delete dialog
+  const handleOpenDelete = async () => {
+    setDeletePassword('')
+    setDeleteError('')
+    if (auth.currentUser) {
+      await auth.currentUser.reload()
+    }
+    setOpenDeleteDialog(true)
+  }
   const handleCloseDelete = () => setOpenDeleteDialog(false)
   const handleDeleteAccount = async () => {
     if (!user) return
     try {
-      const cred = EmailAuthProvider.credential(user.email || '', deletePassword)
-      await reauthenticateWithCredential(auth.currentUser!, cred)
-      await deleteUser(auth.currentUser!)
-      navigate('/login')
-    } catch (e: any) { setDeleteError(e.message) }
+      if (isGoogleOnly) {
+        // Reauthenticate via Google
+        await reauthenticateWithPopup(auth.currentUser!, new GoogleAuthProvider())
+      } else {
+        // Reauthenticate via password
+        const cred = EmailAuthProvider.credential(user.email || '', deletePassword)
+        await reauthenticateWithCredential(auth.currentUser!, cred)
+      }
+      // Soft-delete: mark account pending deletion
+      await setDoc(doc(db, 'users', user.uid), {
+        deletionRequestedAt: serverTimestamp(),
+        status: 'pending_deletion'
+      }, { merge: true })
+      // Sign out user and inform
+      await auth.signOut()
+      navigate('/login', { state: { message: 'Account scheduled for deletion in 30 days.' } })
+    } catch (e: any) {
+      setDeleteError(e.message)
+    }
   }
 
   return (
@@ -390,13 +418,31 @@ const ProfilePage: React.FC = () => {
       <Dialog open={openDeleteDialog} onClose={handleCloseDelete}>
         <DialogTitle>Delete Account</DialogTitle>
         <DialogContent>
-          <Typography>Type your password to confirm. This cannot be undone.</Typography>
-          {deleteError && <Typography color="error">{deleteError}</Typography>}
-          <TextField margin="dense" label="Password" type="password" fullWidth value={deletePassword} onChange={e => setDeletePassword(e.target.value)} />
+          {isGoogleOnly ? (
+            <>
+              <Typography>Reauthenticate with Google to delete your account. This cannot be undone.</Typography>
+              {deleteError && <Typography color="error">{deleteError}</Typography>}
+            </>
+          ) : (
+            <>
+              <Typography>Type your password to confirm. This cannot be undone.</Typography>
+              {deleteError && <Typography color="error">{deleteError}</Typography>}
+              <TextField
+                margin="dense"
+                label="Password"
+                type="password"
+                fullWidth
+                value={deletePassword}
+                onChange={e => setDeletePassword(e.target.value)}
+              />
+            </>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDelete}>Cancel</Button>
-          <Button color="error" onClick={handleDeleteAccount} variant="contained">Delete</Button>
+          <Button color="error" onClick={handleDeleteAccount} variant="contained">
+            {isGoogleOnly ? 'Delete with Google' : 'Delete'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Container>

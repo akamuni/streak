@@ -29,16 +29,18 @@ const ChatDialog: React.FC<ChatDialogProps> = ({ open, onClose, friendId, friend
   const { user } = useContext(AuthContext)
   const [messages, setMessages] = useState<{ id: string; senderId: string; text: string; ts: Date }[]>([])
   const [text, setText] = useState('')
+  if (!user) return null;
   const convoId = getConversationId(user.uid, friendId)
 
   useEffect(() => {
-    if (!open) return
+    if (!open || !user) return
     const unsub = listenMessages(convoId, msgs => setMessages(msgs))
     return () => unsub()
-  }, [open, convoId])
+  }, [open, convoId, user])
 
   const handleSend = async () => {
     if (!text.trim()) return
+    if (!user) return;
     await sendMessage(convoId, user.uid, text.trim())
     setText('')
   }
@@ -52,8 +54,8 @@ const ChatDialog: React.FC<ChatDialogProps> = ({ open, onClose, friendId, friend
             <ListItem key={msg.id} alignItems="flex-start">
               <ListItemAvatar>
                 <Avatar
-                  src={msg.senderId === user.uid ? user.photoURL || undefined : friendPhotoURL}
-                  alt={msg.senderId === user.uid ? 'You' : friendName}
+                  src={msg.senderId === user?.uid ? user?.photoURL || undefined : friendPhotoURL}
+                  alt={msg.senderId === user?.uid ? 'You' : friendName}
                 />
               </ListItemAvatar>
               <ListItemText

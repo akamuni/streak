@@ -19,6 +19,8 @@ import {
   updateUserProfile,
 } from '../services/userService'
 import { useNavigate } from 'react-router-dom'
+import { auth } from '../firebase'
+import { EmailAuthProvider, linkWithCredential } from 'firebase/auth'
 
 const SetupProfilePage: React.FC = () => {
   const { user } = useContext(AuthContext)
@@ -32,8 +34,13 @@ const SetupProfilePage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [gender, setGender] = useState('')
   const [dateOfBirth, setDateOfBirth] = useState<string>('')
+  const [setupPassword, setSetupPassword] = useState<string>('')
+  const [setupConfirm, setSetupConfirm] = useState<string>('')
+  const [setupError, setSetupError] = useState<string>('')
 
   if (!user) return null
+  // Provider checks after ensuring user is defined
+  const hasPasswordProvider = user.providerData.some(p => p.providerId === 'password')
 
   const handleUsernameBlur = async () => {
     if (!username) return
@@ -72,6 +79,14 @@ const SetupProfilePage: React.FC = () => {
     if (usernameError) return
     let photoURL: string | undefined
     if (photoFile) photoURL = await uploadProfilePicture(user.uid, photoFile)
+    if (!hasPasswordProvider) {
+      if (!setupPassword || setupPassword !== setupConfirm) {
+        setSetupError('Passwords must match and be non-empty')
+        return
+      }
+      const cred = EmailAuthProvider.credential(user.email || '', setupPassword)
+      await linkWithCredential(auth.currentUser!, cred)
+    }
     await updateUserProfile(user.uid, {
       username,
       about,
@@ -157,6 +172,29 @@ const SetupProfilePage: React.FC = () => {
           onChange={(e) => setDateOfBirth(e.target.value)}
           sx={{ mt: 2 }}
         />
+        {!hasPasswordProvider && (
+          <>
+            <TextField
+              fullWidth
+              label="Set Password"
+              type="password"
+              value={setupPassword}
+              onChange={(e) => { setSetupPassword(e.target.value); setSetupError('') }}
+              sx={{ mt: 2 }}
+              error={!!setupError}
+            />
+            <TextField
+              fullWidth
+              label="Confirm Password"
+              type="password"
+              value={setupConfirm}
+              onChange={(e) => { setSetupConfirm(e.target.value); setSetupError('') }}
+              sx={{ mt: 2 }}
+              error={!!setupError}
+              helperText={setupError}
+            />
+          </>
+        )}
         <Button
           fullWidth
           variant="contained"
