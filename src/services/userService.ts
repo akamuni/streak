@@ -2,6 +2,7 @@ import { db } from '../firebase'
 import { doc, onSnapshot, setDoc, getDocs, query, collection, where, limit } from 'firebase/firestore'
 
 export interface UserProfile {
+  name?: string
   username?: string
   about?: string
   photoURL?: string

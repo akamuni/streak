@@ -37,6 +37,7 @@ const SetupProfilePage: React.FC = () => {
   const [setupPassword, setSetupPassword] = useState<string>('')
   const [setupConfirm, setSetupConfirm] = useState<string>('')
   const [setupError, setSetupError] = useState<string>('')
+  const [name, setName] = useState('')
 
   if (!user) return null
   // Provider checks after ensuring user is defined
@@ -88,6 +89,7 @@ const SetupProfilePage: React.FC = () => {
       await linkWithCredential(auth.currentUser!, cred)
     }
     await updateUserProfile(user.uid, {
+      name,
       username,
       about,
       photoURL,
@@ -103,6 +105,13 @@ const SetupProfilePage: React.FC = () => {
         Complete Your Profile
       </Typography>
       <Box component="form" noValidate>
+        <TextField
+          fullWidth
+          label="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          sx={{ mt: 2 }}
+        />
         <TextField
           fullWidth
           label="Username"

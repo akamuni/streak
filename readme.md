@@ -31,10 +31,11 @@ This PWA supports:
 1. Clone repo and install deps:
    ```bash
    git clone <repo-url>
-   cd streaker
+   cd versevoyage
    npm install
 
    firebase login
    firebase init
-   # Select: Hosting, Firestore, Authnpm run build
+   # Select: Hosting, Firestore, Auth
+   npm run build
    firebase deploy

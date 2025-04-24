@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Streaker',
-        short_name: 'Streaker',
+        name: 'VerseVoyage',
+        short_name: 'VerseVoyage',
         description: 'A PWA for tasks and notes',
         theme_color: '#1976d2',
         background_color: '#ffffff',

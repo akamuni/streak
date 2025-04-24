@@ -11,8 +11,8 @@ import { updateEmail as authUpdateEmail, updatePassword as authUpdatePassword, r
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { useNavigate } from 'react-router-dom'
 import { sendFriendRequest, withdrawFriendRequest, listenIncomingRequests, listenOutgoingRequests, listenFriendsList, respondFriendRequest, removeFriend } from '../services/friendService'
-import Cropper, { Area } from 'react-easy-crop'
-import Slider from '@mui/material/Slider'
+import PictureCropDialog from '../components/profile/PictureCropDialog'
+import type { Area } from 'react-easy-crop'
 
 const ProfilePage: React.FC = () => {
   const { user } = useContext(AuthContext)
@@ -33,6 +33,10 @@ const ProfilePage: React.FC = () => {
   const [croppedArea, setCroppedArea] = useState<Area | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const [name, setName] = useState<string>('');
+  const [editingName, setEditingName] = useState<boolean>(false);
+  const [nameDraft, setNameDraft] = useState<string>('');
+
   const onCropComplete = useCallback((_: Area, croppedPixels: Area) => setCroppedArea(croppedPixels), [])
 
   useEffect(() => {
@@ -40,6 +44,8 @@ const ProfilePage: React.FC = () => {
     const unsub = listenUserProfile(user.uid, data => {
       setUsername(data.username || '')
       setUsernameDraft(data.username || '')
+      setName(data.name || '')
+      setNameDraft(data.name || '')
       setAbout(data.about || '')
       setPhotoURL(data.photoURL)
     })
@@ -125,6 +131,12 @@ const ProfilePage: React.FC = () => {
     await updateUserProfile(user.uid, { username: usernameDraft })
     setUsername(usernameDraft)
     setEditingUsername(false)
+  }
+  const handleNameSave = async () => {
+    if (!user) return
+    await updateUserProfile(user.uid, { name: nameDraft })
+    setName(nameDraft)
+    setEditingName(false)
   }
 
   // Account management dialog state
@@ -238,6 +250,7 @@ const ProfilePage: React.FC = () => {
               {editingUsername ? (
                 <>
                   <TextField
+                    label="Username"
                     size="small"
                     value={usernameDraft}
                     onChange={e => setUsernameDraft(e.target.value)}
@@ -247,8 +260,27 @@ const ProfilePage: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <Typography variant="h6">{username || user.email}</Typography>
+                  <Typography variant="h6">{username ? `@${username}` : user.email}</Typography>
                   <Button variant="text" size="small" onClick={() => setEditingUsername(true)}>Edit</Button>
+                </>
+              )}
+            </Box>
+            <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+              {editingName ? (
+                <>
+                  <TextField
+                    label="Name"
+                    size="small"
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                  />
+                  <Button size="small" onClick={handleNameSave}>Save</Button>
+                  <Button size="small" onClick={() => { setEditingName(false); setNameDraft(name); }}>Cancel</Button>
+                </>
+              ) : (
+                <>
+                  <Typography variant="h6">{name || 'Your Name'}</Typography>
+                  <Button variant="text" size="small" onClick={() => { setEditingName(true); setNameDraft(name); }}>Edit</Button>
                 </>
               )}
             </Box>
@@ -362,31 +394,18 @@ const ProfilePage: React.FC = () => {
           </AccordionDetails>
         </Accordion>
       </Box>
-      <Dialog open={Boolean(previewURL)} onClose={() => { setSelectedFile(null); setPreviewURL(undefined) }}>
-        <DialogTitle>Crop Picture</DialogTitle>
-        <DialogContent>
-          <Box sx={{ position: 'relative', width: '100%', height: 300 }}>
-            <Cropper
-              image={previewURL!}
-              crop={crop}
-              zoom={zoom}
-              aspect={1}
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
-              onCropComplete={onCropComplete}
-            />
-          </Box>
-          <Box sx={{ mt: 2 }}>
-            <Typography gutterBottom>Zoom</Typography>
-            <Slider value={zoom} min={1} max={3} step={0.1} onChange={(_, v) => setZoom(v as number)} />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setSelectedFile(null); setPreviewURL(undefined) }}>Cancel</Button>
-          <Button variant="outlined" onClick={async () => { await handleConfirmUpload(); setPreviewURL(undefined); }}>Upload Original</Button>
-          <Button variant="contained" onClick={handleCropAndUpload}>Crop & Upload</Button>
-        </DialogActions>
-      </Dialog>
+      <PictureCropDialog
+        open={Boolean(previewURL)}
+        previewURL={previewURL}
+        crop={crop}
+        zoom={zoom}
+        onCropChange={setCrop}
+        onZoomChange={setZoom}
+        onCropComplete={onCropComplete}
+        onCancel={() => { setSelectedFile(null); setPreviewURL(undefined) }}
+        onUploadOriginal={async () => { await handleConfirmUpload(); setPreviewURL(undefined) }}
+        onCropAndUpload={handleCropAndUpload}
+      />
       {/* Change Email Dialog */}
       <Dialog open={openEmailDialog} onClose={handleCloseEmail}>
         <DialogTitle>Change Email</DialogTitle>

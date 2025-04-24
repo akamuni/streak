@@ -23,7 +23,13 @@ const Login: React.FC = () => {
 
   useEffect(() => {
     if (!loading && user) {
-      navigate('/chapters', { replace: true })
+      // if user has no password provider, send to setup to link a new password
+      const hasPassword = user.providerData.some(p => p.providerId === 'password')
+      if (!hasPassword) {
+        navigate('/setup', { replace: true })
+      } else {
+        navigate('/chapters', { replace: true })
+      }
     }
   }, [user, loading, navigate])
 

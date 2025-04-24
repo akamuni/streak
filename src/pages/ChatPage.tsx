@@ -14,6 +14,8 @@ import {
   TextField,
   Button,
   CircularProgress,
+  Card,
+  CardContent,
 } from '@mui/material'
 
 const ChatPage: React.FC = () => {
@@ -79,20 +81,25 @@ const ChatPage: React.FC = () => {
                 <ListItemAvatar sx={{ alignSelf: 'flex-start', mr: isOwn ? 0 : 1, ml: isOwn ? 1 : 0 }}>
                   <Avatar src={isOwn ? ownProfile.photoURL || undefined : friendProfile.photoURL} />
                 </ListItemAvatar>
-                <Box
+                <Card
+                  variant="outlined"
                   sx={{
-                    bgcolor: isOwn ? 'primary.main' : 'grey.300',
+                    bgcolor: isOwn ? 'primary.main' : 'grey.100',
                     color: isOwn ? 'primary.contrastText' : 'text.primary',
                     borderRadius: 2,
-                    p: 1,
                     maxWidth: '75%',
+                    boxShadow: isOwn ? 3 : 1,
                   }}
                 >
-                  <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>{msg.text}</Typography>
-                  <Typography variant="caption" sx={{ display: 'block', mt: 0.5, textAlign: isOwn ? 'right' : 'left' }}>
-                    {senderName} • {msg.ts.toLocaleTimeString()}
-                  </Typography>
-                </Box>
+                  <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
+                    <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+                      {msg.text}
+                    </Typography>
+                    <Typography variant="caption" sx={{ display: 'block', mt: 0.5, textAlign: isOwn ? 'right' : 'left' }}>
+                      {senderName} • {msg.ts.toLocaleTimeString()}
+                    </Typography>
+                  </CardContent>
+                </Card>
               </ListItem>
             )
           })

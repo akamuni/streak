@@ -1,5 +1,5 @@
-import React, { useContext, useState, useEffect } from 'react'
-import { Typography, Container, Card, CardContent, Tabs, Tab, Box, Chip, Stack, List, ListItem, ListItemAvatar, Avatar, ListItemText, Pagination } from '@mui/material'
+import React, { useContext, useState, useEffect, useMemo } from 'react'
+import { Typography, Container, Card, CardContent, Tabs, Tab, Box, Chip, Stack, List, ListItem, ListItemAvatar, Avatar, ListItemText, Pagination, Dialog, DialogTitle, DialogContent, DialogActions, Button } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
@@ -28,6 +28,7 @@ const DashboardPage: React.FC = () => {
   const [friendReadData, setFriendReadData] = useState<Record<string, Record<string, Date>>>({})
   const [friendStreaks, setFriendStreaks] = useState<Record<string, number>>({})
   const [page, setPage] = useState(1)
+  const [selectedFriend, setSelectedFriend] = useState<string | null>(null)
   const itemsPerPage = 5
   const sortedFriends = Object.entries(friendStreaks).sort(([,a], [,b]) => b - a)
   const totalPages = Math.ceil(sortedFriends.length / itemsPerPage)
@@ -130,6 +131,16 @@ const DashboardPage: React.FC = () => {
 
   const streak = React.useMemo(computeStreak, [readChapters, cheatDays])
 
+  const lastReadChapter = useMemo(() => {
+    let last: string | null = null;
+    let lastTime = 0;
+    Object.entries(readChapters).forEach(([id, date]) => {
+      const t = date.getTime();
+      if (t > lastTime) { lastTime = t; last = id; }
+    });
+    return last;
+  }, [readChapters]);
+
   const handleToggleCheat = (date: Date | null) => {
     if (!user || !date) return
     const iso = date.toDateString()
@@ -153,9 +164,12 @@ const DashboardPage: React.FC = () => {
             <Typography variant="h5" gutterBottom>
               Welcome, {user?.email}
             </Typography>
-            <Typography variant="body1">
-              This is your dashboard. Begin by adding or viewing your tasks and notes.
-            </Typography>
+            {lastReadChapter ? (
+              <Typography variant="body1">You're on {lastReadChapter}!</Typography>
+            ) : (
+              <Typography variant="body1">You haven't started reading yet.</Typography>
+            )}
+            <Typography variant="body1">🔥 {streak}-day streak!</Typography>
           </CardContent>
         </Card>
         <Tabs value={tab} onChange={handleTabChange} sx={{ mt: 2 }}>
@@ -240,7 +254,10 @@ const DashboardPage: React.FC = () => {
                   const rank = (page - 1) * itemsPerPage + idx + 1
                   const prof = friendProfiles[fid] || {}
                   return (
-                    <ListItem key={fid} sx={{ bgcolor: rank === 1 ? '#FFD700' : rank === 2 ? '#C0C0C0' : rank === 3 ? '#CD7F32' : 'inherit' }}>
+                    <ListItem key={fid}
+                      sx={{ bgcolor: rank === 1 ? '#FFD700' : rank === 2 ? '#C0C0C0' : rank === 3 ? '#CD7F32' : 'inherit', cursor: 'pointer' }}
+                      onClick={() => setSelectedFriend(fid)}
+                    >
                       <ListItemAvatar><Avatar src={prof.photoURL} /></ListItemAvatar>
                       <ListItemText
                         primary={`${rank}. ${prof.username || fid}`}
@@ -261,6 +278,22 @@ const DashboardPage: React.FC = () => {
           </>
         )}
       </Container>
+      {/* Friend Profile Dialog */}
+      <Dialog open={!!selectedFriend} onClose={() => setSelectedFriend(null)}>
+        <DialogTitle>Friend Profile</DialogTitle>
+        <DialogContent>
+          <Typography>Name: {selectedFriend ? (friendProfiles[selectedFriend]?.name || 'N/A') : ''}</Typography>
+          <Typography>Username: {selectedFriend ? `@${friendProfiles[selectedFriend]?.username || ''}` : ''}</Typography>
+          <Typography>Streak: {selectedFriend ? (friendStreaks[selectedFriend] || 0) : 0} days</Typography>
+          <Typography>Current Chapter: {selectedFriend ? (() => {
+            const chs = Object.keys(friendReadData[selectedFriend] || {})
+            return chs.length ? chs.sort()[chs.length - 1] : 'None'
+          })() : ''}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSelectedFriend(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </>
   )
 }
