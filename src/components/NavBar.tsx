@@ -127,6 +127,7 @@ const NavBar: React.FC<NavBarProps> = ({ user, unreadNotificationCount, notifica
         borderBottom: '1px solid',
         borderColor: 'rgba(255,255,255,0.1)',
         backdropFilter: 'blur(8px)',
+        padding: 0,
       }}
     >
       <Toolbar 

@@ -3,6 +3,7 @@ import { ColorModeProvider } from './context/ColorModeContext'
 import AppRoutes from './routes/AppRoutes'
 import NavBar from './components/NavBar'
 import MobileBottomNavigation from './components/BottomNavigation'
+import InstallBanner from './components/InstallBanner'
 import { useLocation } from 'react-router-dom'
 import { ToastProvider } from './components/common/ToastNotification'
 import { useContext, useState, useEffect } from 'react'
@@ -46,7 +47,12 @@ function App() {
   return (
     <ColorModeProvider>
       <ToastProvider>
-        {!hideNav && <NavBar user={user} unreadNotificationCount={unreadCount} notifications={notifications} />}
+        {!hideNav && (
+          <>
+            <InstallBanner position="top" />
+            <NavBar user={user} unreadNotificationCount={unreadCount} notifications={notifications} />
+          </>
+        )}
         <Box
           sx={{
             minHeight: '100vh',

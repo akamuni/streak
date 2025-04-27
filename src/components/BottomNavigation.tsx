@@ -65,7 +65,8 @@ const MobileBottomNavigation: React.FC = () => {
         borderRadius: '16px 16px 0 0',
         overflow: 'hidden',
         boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
-        display: { xs: 'block', sm: 'none' } // Only show on mobile
+        display: { xs: 'block', sm: 'none' }, // Only show on mobile
+        padding: 0,
       }} 
       elevation={3}
     >

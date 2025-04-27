@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="30" fill="#1b5e20"/>
+  
+  <!-- Scriptures (Book of Mormon, Bible, etc.) -->
+  <path d="M16 46 L16 36 L48 36 L48 46" stroke="#ffffff" stroke-width="2" fill="none"/>
+  <path d="M16 36 L16 32 L48 32 L48 36" stroke="#ffffff" stroke-width="2" fill="#ffffff"/>
+  <path d="M32 36 L32 46" stroke="#ffffff" stroke-width="1"/>
+  
+  <!-- Temple spire -->
+  <path d="M32 32 L32 14" stroke="#ffffff" stroke-width="2"/>
+  <path d="M28 32 L36 32" stroke="#ffffff" stroke-width="2"/>
+  <path d="M26 28 L38 28" stroke="#ffffff" stroke-width="2"/>
+  <path d="M24 24 L40 24" stroke="#ffffff" stroke-width="2"/>
+  
+  <!-- Angel Moroni with trumpet -->
+  <circle cx="32" cy="12" r="2" fill="#ffffff"/>
+  <path d="M30 14 L31 16 L33 16 L34 14" stroke="#ffffff" stroke-width="1" fill="none"/>
+  <path d="M34 12 L38 10" stroke="#ffffff" stroke-width="1"/>
+</svg>

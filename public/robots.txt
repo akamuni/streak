@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://streak-e5acd.web.app/sitemap.xml
