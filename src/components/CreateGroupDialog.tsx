@@ -13,7 +13,6 @@ import {
   Avatar,
   Stack,
   CircularProgress,
-  Snackbar,
   Alert
 } from '@mui/material';
 import GroupsIcon from '@mui/icons-material/Groups';
