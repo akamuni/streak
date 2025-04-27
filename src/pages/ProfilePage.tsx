@@ -1,31 +1,33 @@
 import React, { useContext, useState, useEffect, useRef, useCallback } from 'react'
 import { ChangeEvent } from 'react'
-import { Container, Typography, Box, Avatar, Button, TextField, Accordion, AccordionSummary, AccordionDetails, List, ListItem, ListItemText, Divider, Switch, FormControlLabel, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import { Container, Typography, Box, Avatar, Button, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Paper, IconButton, Badge, Tooltip } from '@mui/material'
+import ProfileStatsCard from '../components/profile/ProfileStatsCard'
+import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import EditIcon from '@mui/icons-material/Edit'
 import { AuthContext } from '../context/AuthContext'
 import { ColorModeContext } from '../context/ColorModeContext'
 import { useTheme } from '@mui/material/styles'
+import Brightness4Icon from '@mui/icons-material/Brightness4'
+import Brightness7Icon from '@mui/icons-material/Brightness7'
+
 import { listenUserProfile, updateUserProfile, uploadProfilePicture } from '../services/userService'
 import { auth, db } from '../firebase'
 import { updateEmail as authUpdateEmail, updatePassword as authUpdatePassword, reauthenticateWithCredential, reauthenticateWithPopup, EmailAuthProvider, GoogleAuthProvider } from 'firebase/auth'
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { useNavigate } from 'react-router-dom'
-import { sendFriendRequest, withdrawFriendRequest, listenIncomingRequests, listenOutgoingRequests, listenFriendsList, respondFriendRequest, removeFriend } from '../services/friendService'
+
 import PictureCropDialog from '../components/profile/PictureCropDialog'
 import type { Area } from 'react-easy-crop'
 
 const ProfilePage: React.FC = () => {
   const { user } = useContext(AuthContext)
   const theme = useTheme()
-  const { toggleColorMode } = useContext(ColorModeContext)
-  if (!user) return null
-  const [about, setAbout] = useState<string>('')
+  const colorMode = useContext(ColorModeContext)
   const [photoURL, setPhotoURL] = useState<string | undefined>('')
   const [username, setUsername] = useState<string>('')
-  const [editingUsername, setEditingUsername] = useState<boolean>(false)
-  const [usernameDraft, setUsernameDraft] = useState<string>(username)
-  const [editingAbout, setEditingAbout] = useState<boolean>(false)
-  const [aboutDraft, setAboutDraft] = useState<string>('')
+  // We'll use the same variable for both current and draft values
+  // Username state for editing
+  const [_, setUsernameDraft] = useState<string>('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewURL, setPreviewURL] = useState<string | undefined>(undefined)
   const [crop, setCrop] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
@@ -34,8 +36,8 @@ const ProfilePage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [name, setName] = useState<string>('');
-  const [editingName, setEditingName] = useState<boolean>(false);
-  const [nameDraft, setNameDraft] = useState<string>('');
+  // Name state for editing
+  const [__, setNameDraft] = useState<string>('');
 
   const onCropComplete = useCallback((_: Area, croppedPixels: Area) => setCroppedArea(croppedPixels), [])
 
@@ -46,7 +48,6 @@ const ProfilePage: React.FC = () => {
       setUsernameDraft(data.username || '')
       setName(data.name || '')
       setNameDraft(data.name || '')
-      setAbout(data.about || '')
       setPhotoURL(data.photoURL)
     })
     return () => unsub()
@@ -66,6 +67,7 @@ const ProfilePage: React.FC = () => {
   }, [selectedFile])
 
   const navigate = useNavigate()
+  if (!user) return null
 
   const handleUploadClick = () => fileInputRef.current?.click()
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -85,6 +87,8 @@ const ProfilePage: React.FC = () => {
     ctx.drawImage(image, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, pixelCrop.width, pixelCrop.height)
     return new Promise(resolve => canvas.toBlob(blob => resolve(blob!), 'image/jpeg'))
   }
+
+  // Removed unused handlers: handleAboutSave, handleUsernameSave, handleNameSave, handleOpenPwd
 
   const handleConfirmUpload = async () => {
     if (!user || !selectedFile) return
@@ -120,24 +124,7 @@ const ProfilePage: React.FC = () => {
     }
   }
 
-  const handleAboutSave = async () => {
-    if (!user) return
-    await updateUserProfile(user.uid, { about: aboutDraft })
-    setAbout(aboutDraft)
-    setEditingAbout(false)
-  }
-  const handleUsernameSave = async () => {
-    if (!user) return
-    await updateUserProfile(user.uid, { username: usernameDraft })
-    setUsername(usernameDraft)
-    setEditingUsername(false)
-  }
-  const handleNameSave = async () => {
-    if (!user) return
-    await updateUserProfile(user.uid, { name: nameDraft })
-    setName(nameDraft)
-    setEditingName(false)
-  }
+  // Removed unused handlers
 
   // Account management dialog state
   const [openEmailDialog, setOpenEmailDialog] = useState(false)
@@ -160,19 +147,7 @@ const ProfilePage: React.FC = () => {
   const hasGoogleProvider = user.providerData.some(p => p.providerId === 'google.com')
   const isGoogleOnly = hasGoogleProvider && !hasPasswordProvider
 
-  // Friend management state
-  const [incomingReqs, setIncomingReqs] = useState<{ id: string; from: string }[]>([])
-  const [outgoingReqs, setOutgoingReqs] = useState<{ id: string; to: string }[]>([])
-  const [friendsList, setFriendsList] = useState<{ id: string; since: string }[]>([])
-  const [friendId, setFriendId] = useState('')
-
-  useEffect(() => {
-    if (!user) return
-    const unsubInc = listenIncomingRequests(user.uid, setIncomingReqs)
-    const unsubOut = listenOutgoingRequests(user.uid, setOutgoingReqs)
-    const unsubFr = listenFriendsList(user.uid, setFriendsList)
-    return () => { unsubInc(); unsubOut(); unsubFr() }
-  }, [user])
+  // We don't need friend management state in this view anymore since we're navigating to /friends
 
   // Handlers
   const handleOpenEmail = () => { setEmailNew(user?.email || ''); setEmailPassword(''); setEmailError(''); setOpenEmailDialog(true) }
@@ -187,7 +162,8 @@ const ProfilePage: React.FC = () => {
     } catch (e: any) { setEmailError(e.message) }
   }
 
-  const handleOpenPwd = () => { setPwdCurrent(''); setPwdNew(''); setPwdConfirm(''); setPwdError(''); setOpenPwdDialog(true) }
+  // Password dialog state setup - these variables are kept for future implementation
+  // The handleOpenPwd function was removed as it's not currently used
   const handleClosePwd = () => setOpenPwdDialog(false)
   const handlePwdSave = async () => {
     if (!user) return
@@ -235,165 +211,170 @@ const ProfilePage: React.FC = () => {
   }
 
   return (
-    <Container sx={{ mt: 4 }}>
-      <Typography variant="h4" gutterBottom>Profile</Typography>
-      <Box sx={{ my: 2 }}>
-        <Accordion defaultExpanded>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography>Personal Info</Typography></AccordionSummary>
-          <AccordionDetails>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Avatar key={previewURL || photoURL} src={previewURL || photoURL} sx={{ width: 64, height: 64 }} />
-              <Button variant="outlined" onClick={handleUploadClick}>Change Picture</Button>
+    <Container maxWidth="sm" sx={{ mt: 4, mb: 8 }}>
+      <Typography variant="h4" gutterBottom align="center">Profile</Typography>
+      
+      {/* Personal Info Card */}
+      <Paper elevation={2} sx={{ borderRadius: 3, mb: 2, overflow: 'hidden' }}>
+        <Box sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Typography variant="h6">@{username || user.email?.split('@')[0]}</Typography>
+              <IconButton 
+                onClick={() => updateUserProfile(user.uid, { username: prompt('Enter new username:', username) || username })}
+                size="small"
+                sx={{ ml: 1 }}
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Box>
+            <Tooltip title={theme.palette.mode === 'dark' ? 'Light Mode' : 'Dark Mode'}>
+              <IconButton onClick={colorMode.toggleColorMode} size="small">
+                {theme.palette.mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
+              </IconButton>
+            </Tooltip>
+          </Box>
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+            <Box sx={{ position: 'relative' }}>
+              <Badge
+                overlap="circular"
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                badgeContent={
+                  <IconButton 
+                    onClick={handleUploadClick}
+                    sx={{ 
+                      bgcolor: 'background.paper', 
+                      width: 32, 
+                      height: 32,
+                      border: '2px solid #fff',
+                      '&:hover': { bgcolor: 'background.paper' }
+                    }}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                }
+              >
+                <Avatar 
+                  src={previewURL || photoURL} 
+                  sx={{ 
+                    width: 100, 
+                    height: 100,
+                    border: '3px solid #fff',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  }} 
+                />
+              </Badge>
               <input type="file" accept="image/*" hidden ref={fileInputRef} onChange={handleFileChange} />
             </Box>
-            <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-              {editingUsername ? (
-                <>
-                  <TextField
-                    label="Username"
-                    size="small"
-                    value={usernameDraft}
-                    onChange={e => setUsernameDraft(e.target.value)}
-                  />
-                  <Button size="small" onClick={handleUsernameSave}>Save</Button>
-                  <Button size="small" onClick={() => { setEditingUsername(false); setUsernameDraft(username); }}>Cancel</Button>
-                </>
-              ) : (
-                <>
-                  <Typography variant="h6">{username ? `@${username}` : user.email}</Typography>
-                  <Button variant="text" size="small" onClick={() => setEditingUsername(true)}>Edit</Button>
-                </>
-              )}
-            </Box>
-            <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-              {editingName ? (
-                <>
-                  <TextField
-                    label="Name"
-                    size="small"
-                    value={nameDraft}
-                    onChange={(e) => setNameDraft(e.target.value)}
-                  />
-                  <Button size="small" onClick={handleNameSave}>Save</Button>
-                  <Button size="small" onClick={() => { setEditingName(false); setNameDraft(name); }}>Cancel</Button>
-                </>
-              ) : (
-                <>
-                  <Typography variant="h6">{name || 'Your Name'}</Typography>
-                  <Button variant="text" size="small" onClick={() => { setEditingName(true); setNameDraft(name); }}>Edit</Button>
-                </>
-              )}
-            </Box>
-            <Box sx={{ mt: 2 }}>
-              <TextField
-                fullWidth
-                label="About me"
-                multiline
-                rows={3}
-                variant="outlined"
-                value={editingAbout ? aboutDraft : about}
-                onChange={(e) => setAboutDraft(e.target.value)}
-                disabled={!editingAbout}
-              />
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-              {editingAbout ? (
-                <>
-                  <Button onClick={() => { setEditingAbout(false); setAboutDraft(about); }}>Cancel</Button>
-                  <Button variant="contained" onClick={handleAboutSave}>Save</Button>
-                </>
-              ) : (
-                <Button variant="text" onClick={() => { setEditingAbout(true); setAboutDraft(about); }}>Edit</Button>
-              )}
-            </Box>
-          </AccordionDetails>
-        </Accordion>
-        <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography>Account Management</Typography></AccordionSummary>
-          <AccordionDetails>
-            <List>
-              <ListItem><ListItemText primary="Change Email" /><Button variant="text" onClick={handleOpenEmail}>Edit</Button></ListItem>
-              <ListItem><ListItemText primary="Change Password" /><Button variant="text" onClick={handleOpenPwd}>Edit</Button></ListItem>
-              <Divider />
-              <ListItem><ListItemText primary="Delete Account" /><Button color="error" variant="outlined" onClick={handleOpenDelete}>Delete</Button></ListItem>
-              <ListItem><Button variant="contained" color="primary" fullWidth onClick={() => navigate('/signout')}>Sign Out</Button></ListItem>
-            </List>
-          </AccordionDetails>
-        </Accordion>
-        <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography>Friends</Typography></AccordionSummary>
-          <AccordionDetails>
-            <Box sx={{ mb: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
-              <TextField label="Friend UID" size="small" value={friendId} onChange={e => setFriendId(e.target.value)} />
-              <Button variant="contained" disabled={!friendId} onClick={() => sendFriendRequest(user.uid, friendId)}>
-                Send Request
-              </Button>
-            </Box>
-            {incomingReqs.length > 0 && (
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2">Incoming Requests</Typography>
-                {incomingReqs.map(req => (
-                  <Box key={req.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                    <Typography>{req.from}</Typography>
-                    <Button size="small" onClick={() => respondFriendRequest(user.uid, req.from, true)}>Accept</Button>
-                    <Button size="small" onClick={() => respondFriendRequest(user.uid, req.from, false)}>Decline</Button>
-                  </Box>
-                ))}
-              </Box>
-            )}
-            {outgoingReqs.length > 0 && (
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2">Outgoing Requests</Typography>
-                {outgoingReqs.map(req => (
-                  <Box key={req.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                    <Typography>{req.to}</Typography>
-                    <Button size="small" onClick={() => withdrawFriendRequest(user.uid, req.to)}>Cancel</Button>
-                  </Box>
-                ))}
-              </Box>
-            )}
-            {friendsList.length > 0 && (
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2">Friends</Typography>
-                {friendsList.map(f => (
-                  <Box key={f.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                    <Typography>{f.id}</Typography>
-                    <Button size="small" onClick={() => removeFriend(user.uid, f.id)}>Unfriend</Button>
-                  </Box>
-                ))}
-              </Box>
-            )}
-          </AccordionDetails>
-        </Accordion>
-        <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography>Privacy & Notifications</Typography></AccordionSummary>
-          <AccordionDetails>
-            <FormControlLabel control={<Switch />} label="Public Profile" />
-            <FormControlLabel control={<Switch />} label="Email Notifications" />
-          </AccordionDetails>
-        </Accordion>
-        <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography>Stats & Badges</Typography></AccordionSummary>
-          <AccordionDetails>
-            <Typography>Coming soon...</Typography>
-          </AccordionDetails>
-        </Accordion>
-        <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography>Appearance & Misc</Typography></AccordionSummary>
-          <AccordionDetails>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={theme.palette.mode === 'dark'}
-                  onChange={toggleColorMode}
-                />
-              }
-              label="Dark Mode"
-            />
-            <Button variant="text">Send Feedback</Button>
-          </AccordionDetails>
-        </Accordion>
-      </Box>
+          </Box>
+          
+          {/* Name */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 3, mt: 2 }}>
+            <Typography variant="h5" fontWeight="500">
+              {name || 'Your Name'}
+            </Typography>
+            <IconButton 
+              onClick={() => updateUserProfile(user.uid, { name: prompt('Enter your name:', name) || name })}
+              size="small"
+              sx={{ ml: 1 }}
+            >
+              <EditIcon fontSize="small" />
+            </IconButton>
+          </Box>
+          {/* Profile Stats Card */}
+          <ProfileStatsCard />
+        </Box>
+      </Paper>
+      
+      {/* Account Management */}
+      <Paper 
+        elevation={2} 
+        sx={{ 
+          borderRadius: 3, 
+          mb: 2, 
+          overflow: 'hidden',
+          '&:hover': { bgcolor: 'rgba(0,0,0,0.01)' },
+          cursor: 'pointer'
+        }}
+        onClick={handleOpenEmail}
+      >
+        <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">Account Management</Typography>
+          <ChevronRightIcon />
+        </Box>
+      </Paper>
+      
+      {/* Friends */}
+      <Paper 
+        elevation={2} 
+        sx={{ 
+          borderRadius: 3, 
+          mb: 2, 
+          overflow: 'hidden',
+          '&:hover': { bgcolor: 'rgba(0,0,0,0.01)' },
+          cursor: 'pointer'
+        }}
+        onClick={() => navigate('/friends')}
+      >
+        <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">Friends</Typography>
+          <ChevronRightIcon />
+        </Box>
+      </Paper>
+      
+      {/* Privacy & Notifications */}
+      <Paper 
+        elevation={2} 
+        sx={{ 
+          borderRadius: 3, 
+          mb: 2, 
+          overflow: 'hidden',
+          '&:hover': { bgcolor: 'rgba(0,0,0,0.01)' },
+          cursor: 'pointer'
+        }}
+      >
+        <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">Privacy & Notifications</Typography>
+          <ChevronRightIcon />
+        </Box>
+      </Paper>
+      
+      {/* Stats & Badges */}
+      <Paper 
+        elevation={2} 
+        sx={{ 
+          borderRadius: 3, 
+          mb: 2, 
+          overflow: 'hidden',
+          '&:hover': { bgcolor: 'rgba(0,0,0,0.01)' },
+          cursor: 'pointer'
+        }}
+      >
+        <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">Stats & Badges</Typography>
+          <ChevronRightIcon />
+        </Box>
+      </Paper>
+      
+
+      
+      {/* Delete Account */}
+      <Paper 
+        elevation={2} 
+        sx={{ 
+          borderRadius: 3, 
+          mb: 2, 
+          overflow: 'hidden',
+          '&:hover': { bgcolor: 'rgba(0,0,0,0.01)' },
+          cursor: 'pointer'
+        }}
+        onClick={handleOpenDelete}
+      >
+        <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6" color="error">Delete Account</Typography>
+          <ChevronRightIcon />
+        </Box>
+      </Paper>
       <PictureCropDialog
         open={Boolean(previewURL)}
         previewURL={previewURL}

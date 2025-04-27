@@ -6,10 +6,10 @@ import { sendFriendRequest, withdrawFriendRequest, listenIncomingRequests, liste
 import { listenReadChapters } from '../services/chapterService'
 import ChatIcon from '@mui/icons-material/Chat'
 import { Link } from 'react-router-dom'
+import { getUserDisplayName } from '../utils/userDisplay'
 
 const FriendsPage: React.FC = () => {
   const { user } = useContext(AuthContext)
-  if (!user) return null
 
   const [incoming, setIncoming] = useState<{ id: string; from: string }[]>([])
   const [outgoing, setOutgoing] = useState<{ id: string; to: string }[]>([])
@@ -27,6 +27,7 @@ const FriendsPage: React.FC = () => {
 
   // subscribe to requests and friends
   useEffect(() => {
+    if (!user) return
     const unsubInc = listenIncomingRequests(user.uid, setIncoming)
     const unsubOut = listenOutgoingRequests(user.uid, setOutgoing)
     const unsubFr = listenFriendsList(user.uid, setFriends)
@@ -90,17 +91,16 @@ const FriendsPage: React.FC = () => {
   }, [friends]);
 
   const handleSendFriend = async (targetUid: string) => {
+    if (!user) return
     await sendFriendRequest(user.uid, targetUid)
     setSelectedUser(null)
     setSearchInput('')
   }
 
+  if (!user) return null
   return (
     <Container sx={{ mt: 4 }}>
       <Typography variant="h4" gutterBottom>Friends</Typography>
-      <Typography color="textSecondary" variant="body2" sx={{ mb: 2 }}>
-        Debug: UID: {user.uid} | Incoming: {incoming.length} | Outgoing: {outgoing.length} | Friends: {friends.length}
-      </Typography>
       <Box sx={{ mb: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
         <Autocomplete
           sx={{ flex: 1 }}
@@ -151,7 +151,7 @@ const FriendsPage: React.FC = () => {
                   </>
                 }>
                   <ListItemAvatar><Avatar src={p.photoURL} /></ListItemAvatar>
-                  <ListItemText primary={p.username || req.from} />
+                  <ListItemText primary={getUserDisplayName(profiles[req.from], req.from)} />
                 </ListItem>
               )
             })}
@@ -170,7 +170,7 @@ const FriendsPage: React.FC = () => {
                   <Button size="small" onClick={() => withdrawFriendRequest(user.uid, req.to)}>Cancel</Button>
                 }>
                   <ListItemAvatar><Avatar src={p.photoURL} /></ListItemAvatar>
-                  <ListItemText primary={p.username || req.to} />
+                  <ListItemText primary={getUserDisplayName(profiles[req.to], req.to)} />
                 </ListItem>
               )
             })}
@@ -195,7 +195,7 @@ const FriendsPage: React.FC = () => {
                 }>
                   <ListItemAvatar><Avatar src={p.photoURL} /></ListItemAvatar>
                   <ListItemText
-                    primary={p.username || fr.id}
+                    primary={getUserDisplayName(profiles[fr.id], fr.id)}
                     secondary={`Since ${new Date(fr.since).toLocaleDateString()} | Streak: ${friendStreaks[fr.id] ?? 0}`}
                   />
                 </ListItem>

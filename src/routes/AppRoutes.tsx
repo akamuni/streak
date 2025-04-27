@@ -18,7 +18,7 @@ const AppRoutes: React.FC = () => {
         </>
       ) : (
         <>
-          <Route path="/" element={<Navigate to="/chapters" replace />} />
+          <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/chapters" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />

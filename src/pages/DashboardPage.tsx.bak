@@ -1,0 +1,855 @@
+import React, { useContext, useState, useEffect, useMemo } from 'react'
+import { Typography, Container, Card, CardContent, Tabs, Tab, Box, Chip, Stack, List, ListItem, ListItemAvatar, ListItemIcon, ListItemText, Avatar, Pagination, Dialog, DialogTitle, DialogContent, DialogActions, Button, IconButton } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
+import Calendar from 'react-calendar'
+import 'react-calendar/dist/Calendar.css'
+import { AuthContext } from '../context/AuthContext'
+import SkeletonLoader from '../components/common/SkeletonLoader'
+import { useToast } from '../components/common/ToastNotification'
+import MenuBookIcon from '@mui/icons-material/MenuBook'
+import InfoIcon from '@mui/icons-material/Info'
+import ShowChartIcon from '@mui/icons-material/ShowChart'
+import CloseIcon from '@mui/icons-material/Close'
+import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment'
+import ChatIcon from '@mui/icons-material/Chat'
+
+import ChapterTabs from '../components/dashboard/ChapterTabs'
+import StreakChart from '../components/dashboard/StreakChart'
+import StreakStats from '../components/dashboard/StreakStats'
+import { listenReadChapters, updateChapterRead } from '../services/chapterService'
+import { listenCheatDays, updateCheatDay } from '../services/cheatService'
+import { listenFriendsList } from '../services/friendService'
+import { getConversationId, sendMessage } from '../services/chatService'
+import { listenUserProfile, UserProfile } from '../services/userService'
+import { format } from 'date-fns'
+import Rooms from '../components/dashboard/Rooms'
+import { getUserDisplayName } from '../utils/userDisplay'
+
+const DashboardPage: React.FC = () => {
+  const { user } = useContext(AuthContext)
+  const [tab, setTab] = useState(0)
+  const [readChapters, setReadChapters] = useState<{ [id: string]: Date }>({})
+  const theme = useTheme()
+  const [cheatDays, setCheatDays] = useState<Record<string, Date>>({})
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [friendIds, setFriendIds] = useState<string[]>([])
+  const [friendProfiles, setFriendProfiles] = useState<Record<string, UserProfile>>({})
+  const [friendReadData, setFriendReadData] = useState<Record<string, Record<string, Date>>>({})
+  const [friendStreaks, setFriendStreaks] = useState<Record<string, number>>({})
+  const [page, setPage] = useState(1)
+  const [selectedFriend, setSelectedFriend] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const { showToast } = useToast()
+  
+  const itemsPerPage = 5
+  const sortedFriends = Object.entries(friendStreaks).sort(([,a], [,b]) => b - a)
+  const totalPages = Math.ceil(sortedFriends.length / itemsPerPage)
+  const pagedFriends = sortedFriends.slice((page - 1) * itemsPerPage, page * itemsPerPage)
+
+  // Calculate streak function
+  const calculateStreak = (chapters: { [id: string]: Date }, cheatDays: Record<string, Date>) => {
+    if (!Object.keys(chapters).length) return 0
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayStr = today.toDateString()
+
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const yesterdayStr = yesterday.toDateString()
+
+    const dates = Object.values(chapters).map(d => {
+      const date = new Date(d)
+      date.setHours(0, 0, 0, 0)
+      return date.toDateString()
+    })
+    const dateSet = new Set(dates)
+
+    // If read today, streak is at least 1
+    if (dateSet.has(todayStr)) {
+      let streak = 1
+      let currentDate = yesterday
+      
+      while (true) {
+        const dateStr = currentDate.toDateString()
+        if (dateSet.has(dateStr) || cheatDays[dateStr]) {
+          streak++
+          currentDate.setDate(currentDate.getDate() - 1)
+        } else {
+          break
+        }
+      }
+      
+      return streak
+    }
+    
+    // If read yesterday but not today, streak is still active
+    if (dateSet.has(yesterdayStr)) {
+      let streak = 1
+      let currentDate = new Date(yesterday)
+      currentDate.setDate(currentDate.getDate() - 1)
+      
+      while (true) {
+        const dateStr = currentDate.toDateString()
+        if (dateSet.has(dateStr) || cheatDays[dateStr]) {
+          streak++
+          currentDate.setDate(currentDate.getDate() - 1)
+        } else {
+          break
+        }
+      }
+      
+      return streak
+    }
+    
+    return 0
+  }
+
+  // Calculate last read chapter for display
+  const lastReadChapter = useMemo(() => {
+    const chapters = Object.keys(readChapters)
+    return chapters.length ? chapters.sort()[chapters.length - 1] : null
+  }, [readChapters])
+
+  // Calculate streak
+  const streak = useMemo(() => calculateStreak(readChapters, cheatDays), [readChapters, cheatDays])
+
+  useEffect(() => {
+    if (!user) {
+      setReadChapters({})
+      return
+    }
+    setLoading(true)
+    const unsubscribe = listenReadChapters(user.uid, data => {
+      setReadChapters(data)
+      setLoading(false)
+    })
+    return () => unsubscribe()
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    const unsubCheat = listenCheatDays(user.uid, data => setCheatDays(data))
+    return () => unsubCheat()
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    const unsub = listenFriendsList(user.uid, list => setFriendIds(list.map(f => f.id)))
+    return () => unsub()
+  }, [user])
+
+  useEffect(() => {
+    const unsubs: (() => void)[] = []
+    friendIds.forEach(fid => {
+      if (!friendProfiles[fid]) {
+        const unsub = listenUserProfile(fid, prof => setFriendProfiles(prev => ({ ...prev, [fid]: prof })))
+        unsubs.push(unsub)
+      }
+    })
+    return () => unsubs.forEach(u => u())
+  }, [friendIds, friendProfiles])
+
+  useEffect(() => {
+    const unsubs: (() => void)[] = []
+    friendIds.forEach(fid => {
+      const unsub = listenReadChapters(fid, data => setFriendReadData(prev => ({ ...prev, [fid]: data })))
+      unsubs.push(unsub)
+    })
+    return () => unsubs.forEach(u => u())
+  }, [friendIds])
+
+  useEffect(() => {
+    const streaks: Record<string, number> = {}
+    Object.entries(friendReadData).forEach(([fid, data]) => {
+      streaks[fid] = calculateStreak(data, {}) // Friends don't have cheat days in this view
+    })
+    setFriendStreaks(streaks)
+  }, [friendReadData])
+
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
+    setTab(newValue)
+  }
+
+  const handleToggleChapter = (id: string, checked: boolean) => {
+    if (!user) return
+    try {
+      updateChapterRead(user.uid, id, checked)
+      showToast(
+        checked ? `Marked ${id} as read` : `Unmarked ${id} as read`, 
+        checked ? 'success' : 'info'
+      )
+    } catch (error) {
+      console.error('Error updating chapter:', error)
+      showToast('Failed to update chapter status', 'error')
+    }
+  }
+
+  const handleToggleCheat = (date: Date | null) => {
+    if (!user || !date) return
+    try {
+      const iso = date.toDateString()
+      const isCheat = Boolean(cheatDays[iso])
+      updateCheatDay(user.uid, date, !isCheat)
+      if (!isCheat) {
+        showToast(`Added cheat day for ${format(date, 'MMM d, yyyy')}`, 'success')
+      } else {
+        showToast(`Removed cheat day for ${format(date, 'MMM d, yyyy')}`, 'info')
+      }
+      setSelectedDate(date)
+    } catch (error) {
+      console.error('Error updating cheat day:', error)
+      showToast('Failed to update cheat day', 'error')
+    }
+  }
+
+  // Streak is already calculated above, no need to recalculate
+
+  // Load user data
+  useEffect(() => {
+    if (!user) return
+    
+    const unsubChapters = listenReadChapters(user.uid, chapters => {
+      setReadChapters(chapters)
+      setLoading(false)
+    })
+    
+    const unsubCheatDays = listenCheatDays(user.uid, days => {
+      setCheatDays(days)
+    })
+    
+    const unsubFriends = listenFriendsList(user.uid, friends => {
+      setFriendIds(friends.map(f => f.id))
+    })
+    
+    return () => {
+      unsubChapters()
+      unsubCheatDays()
+      unsubFriends()
+    }
+  }, [user])
+  
+  // Load friend data
+  useEffect(() => {
+    if (!user || friendIds.length === 0) return
+    
+    const unsubs: (() => void)[] = []
+    const profiles: Record<string, UserProfile> = {}
+    const readData: Record<string, Record<string, Date>> = {}
+    
+    friendIds.forEach(fid => {
+      const unsubProfile = listenUserProfile(fid, profile => {
+        profiles[fid] = profile
+        setFriendProfiles({...profiles})
+      })
+      
+      const unsubChapters = listenReadChapters(fid, chapters => {
+        readData[fid] = chapters
+        setFriendReadData({...readData})
+        
+        // Calculate streak for friend
+        listenCheatDays(fid, cheatDays => {
+          setFriendStreaks(prev => ({
+            ...prev,
+            [fid]: calculateStreak(chapters, cheatDays)
+          }))
+        })
+      })
+      
+      unsubs.push(unsubProfile, unsubChapters)
+    })
+    
+    return () => unsubs.forEach(unsub => unsub())
+  }, [friendIds, user])
+
+  return (
+    <>
+      <Box sx={{ width: '100%' }}>
+        {/* Welcome Card */}
+        <Card 
+          elevation={2}
+          sx={{
+            mb: 4,
+            borderRadius: 3,
+            overflow: 'hidden',
+            position: 'relative',
+            '&::after': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '5px',
+              background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+            }
+          }}
+        >
+          <CardContent sx={{ py: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h5" fontWeight="bold" sx={{ color: theme.palette.primary.main }}>
+                Welcome, {user?.email}
+              </Typography>
+              
+              {!loading && (
+                <Chip 
+                  icon={<span role="img" aria-label="fire">🔥</span>} 
+                  label={`${streak}-day streak`}
+                  color="primary"
+                  sx={{ 
+                    fontWeight: 600,
+                    borderRadius: 3,
+                    px: 1,
+                    '& .MuiChip-icon': { 
+                      mr: 0.5,
+                      ml: -0.5,
+                    }
+                  }}
+                />
+              )}
+            </Box>
+            
+            {loading ? (
+              <SkeletonLoader type="text" width="60%" />
+            ) : lastReadChapter ? (
+              <Box sx={{ 
+                p: 2, 
+                bgcolor: `${theme.palette.primary.main}10`,
+                borderRadius: 2,
+                display: 'flex',
+                alignItems: 'center'
+              }}>
+                <MenuBookIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
+                <Typography variant="body1" fontWeight={500}>
+                  You're currently on <strong>{lastReadChapter}</strong>
+                </Typography>
+              </Box>
+            ) : (
+              <Box sx={{ 
+                p: 2, 
+                bgcolor: `${theme.palette.info.light}20`,
+                borderRadius: 2,
+                display: 'flex',
+                alignItems: 'center'
+              }}>
+                <InfoIcon sx={{ mr: 1, color: theme.palette.info.main }} />
+                <Typography variant="body1">You haven't started reading yet. Select a chapter to begin!</Typography>
+              </Box>
+            )}
+          </CardContent>
+        </Card>
+        
+        {/* Navigation Tabs */}
+        <Box sx={{ 
+          mb: 3,
+          borderRadius: 3,
+          bgcolor: theme.palette.background.paper,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+          overflow: 'hidden'
+        }}>
+          <Tabs 
+            value={tab} 
+            onChange={handleTabChange} 
+            variant="fullWidth"
+            sx={{ 
+              '& .MuiTabs-indicator': {
+                height: 3,
+                borderRadius: '3px 3px 0 0',
+              },
+              '& .MuiTab-root': {
+                fontWeight: 600,
+                py: 1.5,
+                transition: 'all 0.2s ease',
+                '&.Mui-selected': {
+                  color: theme.palette.primary.main,
+                }
+              }
+            }}
+          >
+            <Tab label="Chapters" icon={<MenuBookIcon />} iconPosition="start" />
+            <Tab label="Streak & Stats" icon={<ShowChartIcon />} iconPosition="start" />
+          </Tabs>
+        </Box>
+        {loading ? (
+          tab === 0 ? (
+            <SkeletonLoader type="chapter" count={5} />
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <SkeletonLoader type="card" />
+              <SkeletonLoader type="list" count={3} />
+            </Box>
+          )
+        ) : tab === 0 ? (
+          <Card sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+            <CardContent sx={{ p: 0 }}>
+              <ChapterTabs readChapters={readChapters} onToggle={handleToggleChapter} />
+            </CardContent>
+          </Card>
+        ) : (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
+            {/* Left Column - Streak Stats */}
+            <Box>
+              <Card 
+                sx={{ 
+                  borderRadius: 3, 
+                  overflow: 'hidden', 
+                  mb: 3,
+                  position: 'relative',
+                  '&::before': {
+                    content: '""',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '4px',
+                    height: '100%',
+                    bgcolor: 'primary.main',
+                  }
+                }}
+              >
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <ShowChartIcon sx={{ mr: 1.5, color: 'primary.main', fontSize: '1.75rem' }} />
+                    <Typography variant="h5" fontWeight="bold" color="primary.main">
+                      {streak} {streak === 1 ? 'Day' : 'Days'}
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+                    Keep up the great work! Your consistent reading habit is building a strong foundation.
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                    <Box sx={{ 
+                      p: 1.5, 
+                      bgcolor: 'background.default', 
+                      borderRadius: 2,
+                      minWidth: 100,
+                      textAlign: 'center'
+                    }}>
+                      <Typography variant="h6" color="primary.main" fontWeight="bold">
+                        {Object.keys(readChapters).length}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Chapters Read
+                      </Typography>
+                    </Box>
+                    <Box sx={{ 
+                      p: 1.5, 
+                      bgcolor: 'background.default', 
+                      borderRadius: 2,
+                      minWidth: 100,
+                      textAlign: 'center'
+                    }}>
+                      <Typography variant="h6" color="primary.main" fontWeight="bold">
+                        {Object.keys(cheatDays).length}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Cheat Days
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+              
+              <Card sx={{ borderRadius: 3, overflow: 'hidden', mb: 3 }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Typography variant="h6" fontWeight="bold" gutterBottom>Streak Chart</Typography>
+                  <StreakChart />
+                </CardContent>
+              </Card>
+              
+              <Card sx={{ borderRadius: 3, overflow: 'hidden' }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Typography variant="h6" fontWeight="bold" gutterBottom>Streak History</Typography>
+                  <StreakStats />
+                </CardContent>
+              </Card>
+            </Box>
+            
+            {/* Right Column - Calendar & Friends */}
+            <Box>
+              <Card sx={{ borderRadius: 3, overflow: 'hidden', mb: 3 }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Typography variant="h6" fontWeight="bold" gutterBottom>Reading Calendar</Typography>
+                  <Box sx={{ 
+                    p: 2, 
+                    bgcolor: theme.palette.background.default, 
+                    borderRadius: 2,
+                    '.react-calendar': {
+                      width: '100%',
+                      border: 'none',
+                      borderRadius: 2,
+                      fontFamily: 'inherit',
+                      lineHeight: 1.5,
+                    },
+                    '.react-calendar__tile': {
+                      borderRadius: 1,
+                      transition: 'all 0.2s ease',
+                    },
+                    '.react-calendar__tile--active': {
+                      background: `${theme.palette.primary.main}80`,
+                    },
+                    '.react-calendar__tile:enabled:hover': {
+                      background: `${theme.palette.primary.main}20`,
+                    },
+                    '.read-day': {
+                      background: `${theme.palette.primary.main}40`,
+                      color: theme.palette.primary.dark,
+                      fontWeight: 'bold',
+                    },
+                    '.cheat-day': {
+                      background: `${theme.palette.secondary.light}40`,
+                    },
+                    '.missed-day': {
+                      color: theme.palette.error.main,
+                      textDecoration: 'line-through',
+                      opacity: 0.7,
+                    }
+                  }}>
+                    <Calendar
+                      value={selectedDate}
+                      onClickDay={(date) => { handleToggleCheat(date) }}
+                      tileClassName={({ date, view }) => {
+                        if (view === 'month') {
+                          const iso = date.toDateString();
+                          if (cheatDays[iso]) return 'cheat-day';
+                          if (readChapters[iso]) return 'read-day';
+                          if (date < new Date()) return 'missed-day';
+                        }
+                        return '';
+                      }}
+                    />
+                  </Box>
+                  
+                  <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center' }}>
+                    <Chip 
+                      size="small" 
+                      icon={<Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main' }} />}
+                      label="Read Day"
+                      variant="outlined"
+                      sx={{ borderRadius: 1 }}
+                    />
+                    <Chip 
+                      size="small" 
+                      icon={<Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'secondary.light' }} />}
+                      label="Cheat Day"
+                      variant="outlined"
+                      sx={{ borderRadius: 1 }}
+                    />
+                    <Chip 
+                      size="small" 
+                      icon={<Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'error.main' }} />}
+                      label="Missed Day"
+                      variant="outlined"
+                      sx={{ borderRadius: 1 }}
+                    />
+                  </Box>
+                  
+                  {Object.keys(cheatDays).length > 0 && (
+                    <Box sx={{ mt: 3, p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
+                      <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                        Planned Cheat Days:
+                      </Typography>
+                      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                        {Object.keys(cheatDays).map(iso => (
+                          <Chip
+                            key={iso}
+                            label={format(new Date(iso), 'MMM d')}
+                            onDelete={() => user && updateCheatDay(user.uid, new Date(iso), false)}
+                            color="secondary"
+                            size="small"
+                            sx={{ borderRadius: 1, my: 0.5 }}
+                          />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+            </Box>
+            
+            {/* Friends Leaderboard */}
+            <Card sx={{ borderRadius: 3, overflow: 'hidden', mb: 3 }}>
+              <CardContent sx={{ p: 3 }}>
+                <Typography variant="h6" fontWeight="bold" gutterBottom>Friends Leaderboard</Typography>
+                <List sx={{ 
+                  bgcolor: 'background.default', 
+                  borderRadius: 2,
+                  p: 1,
+                  '& .MuiListItem-root': {
+                    transition: 'all 0.2s ease',
+                  }
+                }}>
+                  {pagedFriends.map(([fid, st], idx) => {
+                    const rank = (page - 1) * itemsPerPage + idx + 1
+                    const prof = friendProfiles[fid] || {}
+                    
+                    // Determine medal color and icon
+                    let medalColor = 'inherit';
+                    let medalBg = 'transparent';
+                    let rankDisplay = `${rank}.`;
+                    
+                    if (rank === 1) {
+                      medalColor = '#FFD700';
+                      medalBg = '#FFF9E6';
+                      rankDisplay = '🥇';
+                    } else if (rank === 2) {
+                      medalColor = '#C0C0C0';
+                      medalBg = '#F5F5F5';
+                      rankDisplay = '🥈';
+                    } else if (rank === 3) {
+                      medalColor = '#CD7F32';
+                      medalBg = '#FFF1E6';
+                      rankDisplay = '🥉';
+                    }
+                    
+                    return (
+                      <ListItem 
+                        key={fid}
+                        sx={{ 
+                          mb: 1,
+                          borderRadius: 2,
+                          bgcolor: medalBg,
+                          cursor: 'pointer',
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: '0 4px 8px rgba(0,0,0,0.05)'
+                          }
+                        }}
+                        onClick={() => setSelectedFriend(fid)}
+                      >
+                        <Box 
+                          sx={{ 
+                            width: 32, 
+                            height: 32, 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center',
+                            mr: 1,
+                            fontWeight: 'bold',
+                            color: medalColor,
+                            fontSize: rank <= 3 ? '1.2rem' : '0.9rem'
+                          }}
+                        >
+                          {rankDisplay}
+                        </Box>
+                        <ListItemAvatar>
+                          <Avatar 
+                            src={prof.photoURL} 
+                            sx={{ 
+                              border: rank <= 3 ? `2px solid ${medalColor}` : 'none',
+                            }}
+                          />
+                        </ListItemAvatar>
+                        <ListItemText 
+                          primary={
+                            <Typography variant="body1" fontWeight="medium">
+                              {getUserDisplayName(prof, fid)}
+                            </Typography>
+                          }
+                          secondary={
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <span role="img" aria-label="fire" style={{ marginRight: '4px' }}>🔥</span>
+                              <Typography variant="body2" component="span">
+                                {st} {st === 1 ? 'day' : 'days'}
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </ListItem>
+                    )
+                  })}
+                </List>
+                {totalPages > 1 && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                    <Pagination 
+                      count={totalPages} 
+                      page={page} 
+                      onChange={(_, v) => setPage(v)} 
+                      size="small"
+                      color="primary"
+                      sx={{ 
+                        '& .MuiPaginationItem-root': { 
+                          borderRadius: 1,
+                          fontWeight: 500,
+                        } 
+                      }}
+                    />
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+            
+            {/* Book Clubs */}
+            <Card sx={{ borderRadius: 3, overflow: 'hidden' }}>
+              <CardContent sx={{ p: 3 }}>
+                <Typography variant="h6" fontWeight="bold" gutterBottom>Book Clubs</Typography>
+                <Box sx={{ bgcolor: 'background.default', borderRadius: 2, p: 2 }}>
+                  <Rooms />
+                </Box>
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </Container>
+    </Box>
+      
+      {/* Friend Profile Dialog */}
+      <Dialog 
+        open={!!selectedFriend} 
+        onClose={() => setSelectedFriend(null)}
+        PaperProps={{
+          sx: { 
+            borderRadius: 3, 
+            overflow: 'hidden',
+            maxWidth: 400,
+            width: '100%',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+          }
+        }}
+      >
+        {selectedFriend && (
+          <>
+            <Box 
+              sx={{ 
+                position: 'relative',
+                bgcolor: 'primary.main',
+                color: 'primary.contrastText',
+                p: 3,
+                pb: 8,
+                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+              }}
+            >
+              <IconButton 
+                onClick={() => setSelectedFriend(null)}
+                sx={{ 
+                  position: 'absolute', 
+                  top: 8, 
+                  right: 8, 
+                  color: 'white',
+                  bgcolor: 'rgba(255,255,255,0.15)',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.25)',
+                  }
+                }}
+                size="small"
+              >
+                <CloseIcon fontSize="small" />
+              </IconButton>
+              
+              <Typography variant="h6" fontWeight="bold" gutterBottom>
+                Friend Profile
+              </Typography>
+              
+              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                <Avatar 
+                  src={friendProfiles[selectedFriend]?.photoURL} 
+                  sx={{ 
+                    width: 64, 
+                    height: 64, 
+                    border: '3px solid white',
+                    boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+                  }}
+                />
+                <Box sx={{ ml: 2 }}>
+                  <Typography variant="h6" fontWeight="bold">
+                    {friendProfiles[selectedFriend]?.name || 'Friend'}
+                  </Typography>
+                  {friendProfiles[selectedFriend]?.username && (
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      @{friendProfiles[selectedFriend]?.username}
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+            </Box>
+            
+            <Box 
+              sx={{ 
+                mt: -5, 
+                mx: 2, 
+                mb: 2, 
+                bgcolor: 'background.paper',
+                borderRadius: 3,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                overflow: 'hidden'
+              }}
+            >
+              <List disablePadding>
+                <ListItem sx={{ py: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+                  <ListItemIcon>
+                    <LocalFireDepartmentIcon sx={{ color: 'orange' }} />
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary="Current Streak"
+                    secondary={
+                      <Typography variant="h6" color="primary.main" fontWeight="bold">
+                        {friendStreaks[selectedFriend] || 0} {(friendStreaks[selectedFriend] || 0) === 1 ? 'day' : 'days'}
+                      </Typography>
+                    }
+                  />
+                </ListItem>
+                
+                <ListItem sx={{ py: 2 }}>
+                  <ListItemIcon>
+                    <MenuBookIcon sx={{ color: theme.palette.primary.main }} />
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary="Current Chapter"
+                    secondary={
+                      <Typography variant="body1" fontWeight="medium">
+                        {(() => {
+                          const chs = Object.keys(friendReadData[selectedFriend] || {})
+                          return chs.length ? chs.sort()[chs.length - 1] : 'None'
+                        })()}
+                      </Typography>
+                    }
+                  />
+                </ListItem>
+              </List>
+            </Box>
+            
+            <DialogActions sx={{ px: 3, pb: 3, pt: 0 }}>
+              <Button 
+                variant="outlined"
+                color="primary"
+                size="medium"
+                sx={{ 
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1,
+                  fontWeight: 600,
+                  textTransform: 'none',
+                }}
+                onClick={() => {
+                  // Future enhancement: could implement a message feature here
+                  setSelectedFriend(null);
+                }}
+                startIcon={<ChatIcon />}
+              >
+                Message
+              </Button>
+              <Button 
+                variant="contained"
+                color="primary"
+                size="medium"
+                sx={{ 
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1,
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                }}
+                onClick={() => setSelectedFriend(null)}
+              >
+                Close
+              </Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
+    </>
+  )
+}
+
+export default DashboardPage

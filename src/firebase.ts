@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
-import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore'
+import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 import { getMessaging } from 'firebase/messaging'
 
@@ -24,6 +24,6 @@ export const storage = getStorage(app)
 export const messaging = getMessaging(app)
 
 // Enable offline persistence for Firestore
-enableIndexedDbPersistence(db).catch((err) => {
-  console.warn('Firestore persistence error', err.code)
-})
+// enableIndexedDbPersistence(db).catch((err) => { 
+//   console.warn('Firestore persistence error', err.code)
+// })

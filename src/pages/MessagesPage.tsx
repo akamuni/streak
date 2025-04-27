@@ -19,9 +19,11 @@ import { UserProfile } from '../services/userService'
 import { getConversationId, listenLatestMessage } from '../services/chatService'
 import { db } from '../firebase'
 import { doc, getDoc } from 'firebase/firestore'
+import { getUserDisplayName } from '../utils/userDisplay'
 
 const MessagesPage: React.FC = () => {
   const { user } = useContext(AuthContext)
+  if (!user) return null
   const [friends, setFriends] = useState<{ id: string; since: string }[]>([])
   const [profiles, setProfiles] = useState<Record<string, UserProfile>>({})
   const [latestMessages, setLatestMessages] = useState<Record<string, { senderId: string; text: string; ts: Date } | null>>({})
@@ -35,13 +37,12 @@ const MessagesPage: React.FC = () => {
 
   // load friends
   useEffect(() => {
-    if (!user) return
     return listenFriendsList(user.uid, setFriends)
   }, [user])
 
   // fetch all friend profiles in batch when friends change
   useEffect(() => {
-    if (!user || friends.length === 0) return
+    if (friends.length === 0) return
     const fetchProfiles = async () => {
       const profs: Record<string, UserProfile> = {}
       await Promise.all(friends.map(async fr => {
@@ -57,7 +58,6 @@ const MessagesPage: React.FC = () => {
 
   // listen for latest message per friend
   useEffect(() => {
-    if (!user) return
     const unsubs: (() => void)[] = []
     friends.forEach(fr => {
       const convoId = getConversationId(user.uid, fr.id)
@@ -79,10 +79,10 @@ const MessagesPage: React.FC = () => {
   // search filter
   const [search, setSearch] = useState('')
   const filteredFriends = sortedFriends.filter(fr => {
-    const username = profiles[fr.id]?.username || fr.id
+    const displayName = getUserDisplayName(profiles[fr.id], fr.id)
     const text = latestMessages[fr.id]?.text || ''
     const q = search.toLowerCase()
-    return username.toLowerCase().includes(q) || text.toLowerCase().includes(q)
+    return displayName.toLowerCase().includes(q) || text.toLowerCase().includes(q)
   })
 
   return (
@@ -105,7 +105,7 @@ const MessagesPage: React.FC = () => {
               const msg = latestMessages[fr.id]
               const isUnread = !!(
                 msg &&
-                msg.senderId !== user?.uid &&
+                msg.senderId !== user.uid &&
                 msg.ts.getTime() > (lastReads[fr.id] || 0)
               )
               return (
@@ -130,7 +130,7 @@ const MessagesPage: React.FC = () => {
                     </Badge>
                   </ListItemAvatar>
                   <ListItemText
-                    primary={p?.username || fr.id}
+                    primary={getUserDisplayName(p, fr.id)}
                     primaryTypographyProps={{ fontWeight: isUnread ? 'bold' : 'normal' }}
                     secondary={
                       msg

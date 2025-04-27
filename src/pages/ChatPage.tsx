@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { AuthContext } from '../context/AuthContext'
 import { listenUserProfile, UserProfile } from '../services/userService'
 import { getConversationId, sendMessage, listenMessages } from '../services/chatService'
+import { getUserDisplayName } from '../utils/userDisplay'
 import {
   Container,
   Box,
@@ -60,13 +61,13 @@ const ChatPage: React.FC = () => {
   return (
     <Container sx={{ mt: 4 }}>
       <Typography variant="h5" gutterBottom>
-        Chat with {friendProfile.username || friendId}
+        Chat with {getUserDisplayName(friendProfile, friendId)}
       </Typography>
       <List sx={{ maxHeight: '60vh', overflowY: 'auto', mb: 2 }}>
         {messages.length > 0 ? (
           messages.map(msg => {
             const isOwn = msg.senderId === user.uid
-            const senderName = isOwn ? ownProfile.username || 'You' : friendProfile.username || friendId
+            const senderName = isOwn ? 'You' : getUserDisplayName(friendProfile, friendId)
             return (
               <ListItem
                 key={msg.id}

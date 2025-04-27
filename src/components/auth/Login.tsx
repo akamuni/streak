@@ -5,6 +5,7 @@ import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import GoogleIcon from '@mui/icons-material/Google'
 import Spinner from '../common/Spinner'
 import { useAuth } from '../../hooks/useAuth'
+import { getAdditionalUserInfo } from 'firebase/auth';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('')
@@ -50,10 +51,24 @@ const Login: React.FC = () => {
   }
 
   const handleGoogle = async () => {
+    setError(null); // Clear previous errors
     try {
-      await signInWithGoogle()
-    } catch (err) {
-      console.error(err)
+      const userCredential = await signInWithGoogle();
+      // Check if it's a new user immediately after sign-in
+      const additionalInfo = getAdditionalUserInfo(userCredential);
+      if (additionalInfo?.isNewUser) {
+         // Explicitly navigate new Google users to setup
+         navigate('/setup', { replace: true });
+      }
+      // For existing users, the useEffect hook (lines 23-33) should handle navigation
+    } catch (err: any) { // Catch as any to access code property
+      console.error(err);
+      // Handle potential errors like popup closed by user, network error etc.
+      if (err.code === 'auth/popup-closed-by-user') {
+          setError('Google sign-in cancelled.');
+      } else {
+          setError('An error occurred during Google sign-in.');
+      }
     }
   }
 

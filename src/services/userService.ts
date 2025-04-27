@@ -8,6 +8,7 @@ export interface UserProfile {
   photoURL?: string
   gender?: string
   dateOfBirth?: string
+  lastReadBook?: string; // Add field to store the last read book
 }
 
 /**

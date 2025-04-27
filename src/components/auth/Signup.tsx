@@ -3,11 +3,13 @@ import { signup } from '../../services/authService'
 import { useNavigate } from 'react-router-dom'
 import { Container, Box, TextField, Button, Typography, Link } from '@mui/material'
 import { Link as RouterLink } from 'react-router-dom'
+import { getAdditionalUserInfo } from 'firebase/auth';
 
 const Signup: React.FC = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [passwordError, setPasswordError] = useState<string>('')
+  const [error, setError] = useState<string>('')
   const navigate = useNavigate()
 
   const validatePassword = (pwd: string): string => {
@@ -20,16 +22,36 @@ const Signup: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError('')
     const pwdErr = validatePassword(password)
     if (pwdErr) {
       setPasswordError(pwdErr)
       return
     }
     try {
-      await signup(email, password)
-      navigate('/setup')
-    } catch (error) {
-      console.error(error)
+      const userCredential = await signup(email, password);
+      const additionalInfo = getAdditionalUserInfo(userCredential);
+
+      if (additionalInfo?.isNewUser) {
+          navigate('/setup', { replace: true });
+      } else {
+          console.log('Signup completed, but user is not marked as new. Auth listener should redirect.');
+      }
+    } catch (error: any) {
+      console.error(error);
+      if (error.code === 'auth/email-already-in-use') {
+          setError('This email address is already registered. Please log in or use a different email.');
+          setPasswordError('');
+      } else if (error.code === 'auth/invalid-email') {
+          setError('Please enter a valid email address.');
+          setPasswordError('');
+      } else if (error.code === 'auth/weak-password') {
+          setError('Password is too weak.');
+          setPasswordError('Password is too weak.');
+      } else {
+          setError('An unexpected error occurred during signup.');
+          setPasswordError('');
+      }
     }
   }
 
@@ -39,6 +61,11 @@ const Signup: React.FC = () => {
         <Typography variant="h4" gutterBottom>
           Sign Up
         </Typography>
+        {error && (
+            <Typography color="error" sx={{ mt: 1, mb: 1 }}>
+                {error}
+            </Typography>
+        )}
         <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
           <TextField
             margin="normal"

@@ -6,6 +6,7 @@ import {
   query,
   setDoc,
   deleteDoc,
+  getDocs,
 } from 'firebase/firestore'
 
 /** Send a friend request */
@@ -73,6 +74,15 @@ export const listenFriendsList = (
     const friends = snap.docs.map(d => ({ id: d.id, since: d.data().since as string }))
     callback(friends)
   })
+}
+
+/** Get friends list once */
+export const getFriendsList = async (
+  uid: string
+): Promise<{ id: string; since: string }[]> => {
+  const q = query(collection(db, 'users', uid, 'friends'))
+  const snap = await getDocs(q)
+  return snap.docs.map(d => ({ id: d.id, since: d.data().since as string }))
 }
 
 /** Remove a friend */

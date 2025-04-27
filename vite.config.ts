@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
+      includeAssets: ['favicon.svg'], 
       manifest: {
         name: 'VerseVoyage',
         short_name: 'VerseVoyage',
@@ -16,11 +16,7 @@ export default defineConfig({
         theme_color: '#1976d2',
         background_color: '#ffffff',
         display: 'standalone',
-        orientation: 'portrait',
-        icons: [
-          { src: 'icons/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icons/pwa-512x512.png', sizes: '512x512', type: 'image/png' }
-        ]
+        orientation: 'portrait'
       },
       workbox: {
         runtimeCaching: [
