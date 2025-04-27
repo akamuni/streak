@@ -93,20 +93,20 @@ const InstallBanner: React.FC<InstallBannerProps> = ({ position = 'top' }) => {
   return (
     <Box
       sx={{
-        position: position === 'top' ? 'sticky' : 'fixed',
+        position: 'fixed', // Always use fixed positioning
         top: position === 'top' ? 0 : 'auto',
         bottom: position === 'bottom' ? 0 : 'auto',
         left: 0,
         right: 0,
-        zIndex: 1200, // Higher than AppBar
-        bgcolor: 'primary.main',
+        zIndex: 1300, // Higher than AppBar and Drawer
+        bgcolor: 'primary.dark', // Slightly darker to distinguish from navbar
         color: 'primary.contrastText',
-        py: 1,
+        py: 0.75,
         px: 2,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        boxShadow: 2,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)',
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

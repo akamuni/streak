@@ -368,6 +368,9 @@ export const ColorModeProvider: FC<{ children: ReactNode }> = ({ children }) => 
                   transform: 'translateY(-2px)',
                 },
                 ...(mode === 'dark' && {
+                  // Explicitly set background color in dark mode
+                  backgroundColor: '#1e1e1e',
+                  // Add subtle gradient overlay for depth
                   backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0))',
                 }),
               },
@@ -394,10 +397,56 @@ export const ColorModeProvider: FC<{ children: ReactNode }> = ({ children }) => 
                 borderRadius: 16,
                 overflow: 'hidden',
                 transition: 'transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out',
+                ...(mode === 'dark' && {
+                  // Ensure dark mode background color is applied to cards
+                  backgroundColor: '#1e1e1e',
+                }),
                 '&:hover': {
                   transform: 'translateY(-4px)',
-                  boxShadow: '0 12px 24px rgba(0,0,0,0.1)',
+                  boxShadow: mode === 'light' 
+                    ? '0 12px 24px rgba(0,0,0,0.1)' 
+                    : '0 12px 24px rgba(0,0,0,0.3)',
                 },
+              },
+            },
+          },
+          // Add Dialog component override for dark mode
+          MuiDialog: {
+            styleOverrides: {
+              paper: {
+                ...(mode === 'dark' && {
+                  backgroundColor: '#1e1e1e',
+                }),
+              },
+            },
+          },
+          // Add Popover component override for dark mode
+          MuiPopover: {
+            styleOverrides: {
+              paper: {
+                ...(mode === 'dark' && {
+                  backgroundColor: '#1e1e1e',
+                }),
+              },
+            },
+          },
+          // Add Menu component override for dark mode
+          MuiMenu: {
+            styleOverrides: {
+              paper: {
+                ...(mode === 'dark' && {
+                  backgroundColor: '#1e1e1e',
+                }),
+              },
+            },
+          },
+          // Add Drawer component override for dark mode
+          MuiDrawer: {
+            styleOverrides: {
+              paper: {
+                ...(mode === 'dark' && {
+                  backgroundColor: '#1e1e1e',
+                }),
               },
             },
           },

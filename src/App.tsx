@@ -11,6 +11,7 @@ import { AuthContext } from './context/AuthContext'
 import { Box, Container, useMediaQuery } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import { useAuth } from './hooks/useAuth'
+import { isStandalone, canInstallPWA } from './pwa-utils'
 import { listenNotifications, Notification } from './services/notificationService'
 
 function App() {
@@ -22,6 +23,27 @@ function App() {
   const hideNav = ['/login','/register'].includes(location.pathname)
   const { user } = useAuth()
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const [showBanner, setShowBanner] = useState(false)
+  
+  // Check if the banner should be shown (not in standalone mode and can install)
+  useEffect(() => {
+    const checkBannerVisibility = () => {
+      const shouldShowBanner = !isStandalone() && canInstallPWA()
+      setShowBanner(shouldShowBanner)
+    }
+    
+    // Check initially
+    checkBannerVisibility()
+    
+    // Listen for PWA events that might change banner visibility
+    window.addEventListener('pwaInstallReady', checkBannerVisibility)
+    window.addEventListener('pwaInstalled', () => setShowBanner(false))
+    
+    return () => {
+      window.removeEventListener('pwaInstallReady', checkBannerVisibility)
+      window.removeEventListener('pwaInstalled', () => setShowBanner(false))
+    }
+  }, [])
 
   useEffect(() => {
     let unsubscribe = () => {}
@@ -44,23 +66,41 @@ function App() {
   // Calculate unread count
   const unreadCount = notifications.filter(n => !n.isRead).length
 
+  // Banner height in pixels for spacing calculations
+  const BANNER_HEIGHT = '32px'
+  
   return (
     <ColorModeProvider>
       <ToastProvider>
+        {/* The banner is always rendered at the top level, outside other components */}
+        {!hideNav && showBanner && <InstallBanner position="top" />}
+        
+        {/* NavBar with adjusted top position when banner is shown */}
         {!hideNav && (
-          <>
-            <InstallBanner position="top" />
+          <Box sx={{ 
+            position: 'fixed',
+            top: showBanner ? BANNER_HEIGHT : 0,
+            left: 0,
+            right: 0,
+            zIndex: 1200,
+            transition: 'top 0.3s ease'
+          }}>
             <NavBar user={user} unreadNotificationCount={unreadCount} notifications={notifications} />
-          </>
+          </Box>
         )}
         <Box
           sx={{
             minHeight: '100vh',
-            pt: !hideNav ? { xs: '56px', sm: '64px' } : 0, // Add padding for fixed navbar
+            // Add padding for fixed navbar + banner if shown
+            pt: !hideNav ? {
+              xs: `calc(56px + ${showBanner ? BANNER_HEIGHT : '0px'})`,
+              sm: `calc(64px + ${showBanner ? BANNER_HEIGHT : '0px'})`
+            } : 0,
             pb: isMobile && !hideNav ? '64px' : 4, // Add padding for bottom navigation on mobile
             bgcolor: theme.palette.background.default,
             display: 'flex',
             flexDirection: 'column',
+            transition: 'padding-top 0.3s ease',
           }}
         >
           <Container 
