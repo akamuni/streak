@@ -46,6 +46,7 @@ const MobileBottomNavigation: React.FC = () => {
   const navItems = [
     { label: 'Reading', icon: <MenuBookIcon />, to: '/' },
     { label: 'Friends', icon: <GroupIcon />, to: '/friends' },
+    { label: 'Groups', icon: <GroupIcon />, to: '/groups' },
     { label: 'Messages', icon: hasUnread ? (
       <Badge color="error" variant="dot">
         <ChatIcon />

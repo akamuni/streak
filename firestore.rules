@@ -79,6 +79,40 @@ service cloud.firestore {
       // (Update might be needed if 'isRead' is updated directly, not added yet)
     }
 
+    // Rules for Groups
+    match /groups/{groupId} {
+      // Allow any authenticated user to read groups
+      allow read: if request.auth != null;
+      // Allow any authenticated user to create a group
+      allow create: if request.auth != null;
+      // Allow any authenticated user to update when joining a group
+      allow update: if request.auth != null;
+      // Allow delete only for group creator or members with admin role
+      allow delete: if request.auth != null && 
+                    (request.auth.uid == resource.data.createdBy || 
+                    (request.auth.uid in resource.data.members && 
+                    resource.data.members[request.auth.uid].role == 'admin'));
+
+      // Rules for the messages subcollection
+      match /messages/{messageId} {
+        // Allow members to read
+        allow read: if request.auth != null
+                    && get(/databases/$(database)/documents/groups/$(groupId)).data.members[request.auth.uid] != null;
+
+        // Allow members to create (using get() to check parent group membership)
+        allow create: if request.auth != null
+                      && get(/databases/$(database)/documents/groups/$(groupId)).data.members[request.auth.uid] != null;
+
+        // Allow members to update reactions, or sender to update content
+        allow update: if request.auth != null
+                      && get(/databases/$(database)/documents/groups/$(groupId)).data.members[request.auth.uid] != null
+                      && (request.resource.data.keys().hasOnly(["reactions"]) || request.auth.uid == resource.data.senderId);
+
+        // Only sender can delete
+        allow delete: if request.auth != null && request.auth.uid == resource.data.senderId;
+      }
+    }
+
     // Deny all other document access by default
     match /{document=**} {
       allow read, write: if false;

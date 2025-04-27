@@ -81,6 +81,7 @@ const NavBar: React.FC<NavBarProps> = ({ user, unreadNotificationCount, notifica
   const navItems = [
     { label: 'Reading', icon: <MenuBookIcon fontSize="medium" />, to: '/' },
     { label: 'Friends', icon: <GroupIcon fontSize="medium" />, to: '/friends' },
+    { label: 'Groups', icon: <GroupIcon fontSize="medium" />, to: '/groups' },
     { label: 'Messages', icon: <ChatIcon fontSize="medium" />, to: '/messages' },
   ];
 
